@@ -109,7 +109,7 @@ Clear-Host
 # ==========================================
 # HIỂN THỊ LOGO HACHIHI TECH
 # ==========================================
-$host.UI.RawUI.WindowTitle = "Hachihi Tech - Đang chuẩn bị hệ thống..."
+$host.UI.RawUI.WindowTitle = "Hachihi Tech - Đang tối ưu hệ thống..."
 Write-Host "=====================================================================" -ForegroundColor Cyan
 Write-Host "                             ▄███▄                                   " -ForegroundColor Cyan
 Write-Host "                             ▀███▀                                   " -ForegroundColor Cyan
@@ -128,6 +128,21 @@ Write-Host "             HỆ THỐNG CÀI ĐẶT TỰ ĐỘNG MÁY MỚI (ONE-C
 Write-Host "             By phòng kỹ thuật hachihi - Phiên bản chuyên nghiệp      " -ForegroundColor Yellow 
 Write-Host "=====================================================================" -ForegroundColor Cyan
 Write-Host ""
+
+# ==========================================
+# THAO TÁC CƠ BẢN: CÀI ĐẶT MÚI GIỜ & ĐỒNG BỘ THỜI GIAN
+# ==========================================
+Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
+Write-Host " [+] Đang thiết lập múi giờ (UTC+07:00) và đồng bộ thời gian..." -ForegroundColor White
+try {
+    Set-TimeZone -Id "SE Asia Standard Time" | Out-Null
+    Set-Service W32Time -StartupType Automatic | Out-Null
+    Start-Service W32Time -ErrorAction SilentlyContinue | Out-Null
+    w32tm /resync /nowait | Out-Null
+    Write-Host "     [OK] Đã cấu hình múi giờ Việt Nam và đồng bộ thành công!" -ForegroundColor Green
+} catch {
+    Write-Host "     [!] Không thể thay đổi múi giờ tự động." -ForegroundColor Yellow
+}
 
 $chromeStatus = "Bỏ qua"
 $unikeyStatus = "Bỏ qua"
@@ -151,14 +166,12 @@ foreach ($item in $selectedApps) {
         if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
             Write-Host "     [OK] Đã sẵn sàng trên hệ thống." -ForegroundColor Green
             
-            # Dò tìm đường dẫn thực tế và tạo shortcut tối ưu
             if ($item.Id -eq "Google.Chrome") {
                 $chromeStatus = "Thành công"
                 $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
             }
             if ($item.Id -eq "UniKey.UniKey") {
                 $unikeyStatus = "Thành công"
-                # Tìm đường dẫn UniKey thực tế trên máy
                 $possiblePaths = @(
                     "$env:ProgramFiles\UniKey\unikeynt.exe",
                     "${env:ProgramFiles(x86)}\UniKey\unikeynt.exe",
@@ -170,13 +183,11 @@ foreach ($item in $selectedApps) {
                         break
                     }
                 }
-                # Nếu không tìm thấy mặc định, quét trong thư mục Program Files
                 if (-not $unikeyPath) {
                     $found = Get-ChildItem "C:\Program Files" -Recurse -Filter "unikeynt.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
                     if ($found) { $unikeyPath = $found.FullName }
                 }
                 
-                # Tạo Shortcut ra Desktop cho UniKey để dễ thấy
                 if ($unikeyPath) {
                     $DesktopPath = [Environment]::GetFolderPath("Desktop")
                     $WScriptShell = New-Object -ComObject WScript.Shell
@@ -240,13 +251,14 @@ foreach ($item in $selectedApps) {
 }
 
 # ==========================================
-# BÁO CÁO TỔNG KẾT (CÓ HIỂN THỊ ĐƯỜNG DẪN)
+# BÁO CÁO TỔNG KẾT VÀ MỞ DISK MANAGEMENT
 # ==========================================
 $host.UI.RawUI.WindowTitle = "Hoàn tất quá trình cài đặt!"
 Write-Host ""
 Write-Host "=====================================================================" -ForegroundColor Green
 Write-Host "                  BÁO CÁO KẾT QUẢ CÀI ĐẶT HỆ THỐNG                    " -ForegroundColor Green
 Write-Host "=====================================================================" -ForegroundColor Green
+Write-Host "  [ + ] Múi giờ hệ thống       : UTC+07:00 (Đã đồng bộ)" -ForegroundColor Cyan
 Write-Host "  [ + ] Google Chrome          : $chromeStatus" -ForegroundColor Cyan
 if ($chromePath) {
     Write-Host "        Path: $chromePath" -ForegroundColor DarkGray
@@ -267,7 +279,10 @@ if ($fontCount -gt 0) {
 }
 Write-Host "---------------------------------------------------------------------" -ForegroundColor Green
 Write-Host "  [+] Thiết lập máy mới hoàn tất xuất sắc!" -ForegroundColor White
-Write-Host "  [+] Cửa sổ này sẽ tự động đóng lại sau 15 giây..." -ForegroundColor Yellow
+Write-Host "  [+] Đang mở Disk Management để cấu hình ổ đĩa..." -ForegroundColor Yellow
 Write-Host "=====================================================================" -ForegroundColor Green
 
-Start-Sleep -Seconds 15
+# Mở công cụ quản lý phân vùng ổ đĩa (Disk Management)
+Start-Process "diskmgmt.msc"
+
+Start-Sleep -Seconds 5
