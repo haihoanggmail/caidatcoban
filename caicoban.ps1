@@ -213,10 +213,10 @@ foreach ($item in $selectedApps) {
         }
     }
     
-    if ($item.Type -eq "Font") {
+if ($item.Type -eq "Font") {
         $host.UI.RawUI.WindowTitle = "Đang cài đặt bộ Font chữ hệ thống..."
         Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang tải và kiểm tra Bộ Font hệ thống..." -ForegroundColor White
+        Write-Host " [+] Đang tải và cài đặt nhanh bộ Font hệ thống..." -ForegroundColor White
         
         $tempDir = "$env:TEMP\HachihiFonts"
         if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
@@ -232,20 +232,27 @@ foreach ($item in $selectedApps) {
             
             $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
             $fontCount = $fontFiles.Count
-            
             $winFontDir = "$env:SystemRoot\Fonts"
-            $fontsNamespace = (New-Object -ComObject Shell.Application).Namespace(0x14)
             
             foreach ($font in $fontFiles) {
                 $targetPath = Join-Path $winFontDir $font.Name
                 if (-not (Test-Path $targetPath)) {
-                    $fontsNamespace.CopyHere($font.FullName, 0x10)
+                    # 1. Copy trực tiếp file vào thư mục Fonts tốc độ cao
+                    Copy-Item $font.FullName -Destination $winFontDir -Force
+                    
+                    # 2. Lấy tên hiển thị của font từ file để đăng ký Registry (tránh lỗi font chữ tiếng Việt)
+                    $fontName = [System.Drawing.FontFamily]::FromStream((gi $font.FullName)).Name
+                    if ($fontName) {
+                        $regName = "$fontName (TrueType)"
+                        New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $font.Name -PropertyType String -Force | Out-Null
+                    }
+                    
                     $script:fontInstalledCount++
                 }
             }
-            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $script:fontInstalledCount font." -ForegroundColor Green
+            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $script:fontInstalledCount font (Tốc độ cao)." -ForegroundColor Green
         } catch {
-            Write-Host "     [!] Không thể tải font chữ." -ForegroundColor Yellow
+            Write-Host "     [!] Không thể tải hoặc cài đặt font chữ." -ForegroundColor Yellow
         }
         if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
     }
