@@ -19,26 +19,38 @@ $appList = @(
 )
 
 # ==========================================
-# TẠO GIAO DIỆN CHỌN APP (CÓ ĐẾM NGƯỢC 30 GIÂY)
+# TẠO GIAO DIỆN HIỆN ĐẠI (MODERN UI)
 # ==========================================
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Hachihi Tech - Trình Cài Đặt Tự Động Máy Mới"
-$form.Size = New-Object System.Drawing.Size(460, 440)
+$form.Size = New-Object System.Drawing.Size(480, 470)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
+$form.BackColor = [System.Drawing.Color]::FromArgb(245, 246, 248)
+
+# Panel tiêu đề trên cùng
+$panelTop = New-Object System.Windows.Forms.Panel
+$panelTop.Size = New-Object System.Drawing.Size(480, 60)
+$panelTop.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 
 $label = New-Object System.Windows.Forms.Label
-$label.Location = New-Object System.Drawing.Point(15, 15)
-$label.Size = New-Object System.Drawing.Size(415, 30)
-$label.Text = "Vui lòng chọn các thành phần cần cài đặt cho máy mới:"
-$label.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
-$form.Controls.Add($label)
+$label.Location = New-Object System.Drawing.Point(20, 15)
+$label.Size = New-Object System.Drawing.Size(430, 30)
+$label.Text = "Vui lòng chọn các thành phần cần cài đặt:"
+$label.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$label.ForeColor = [System.Drawing.Color]::White
+$label.BackColor = [System.Drawing.Color]::Transparent
+$panelTop.Controls.Add($label)
+$form.Controls.Add($panelTop)
 
+# Danh sách CheckedListBox hiện đại hơn
 $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
-$checkedListBox.Location = New-Object System.Drawing.Point(15, 50)
-$checkedListBox.Size = New-Object System.Drawing.Size(415, 230)
-$checkedListBox.Font = New-Object System.Drawing.Font("Arial", 9)
+$checkedListBox.Location = New-Object System.Drawing.Point(20, 80)
+$checkedListBox.Size = New-Object System.Drawing.Size(422, 235)
+$checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+$checkedListBox.BackColor = [System.Drawing.Color]::White
+$checkedListBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
 
 foreach ($app in $appList) {
     $index = $checkedListBox.Items.Add($app.Name)
@@ -46,20 +58,24 @@ foreach ($app in $appList) {
 }
 $form.Controls.Add($checkedListBox)
 
+# Nhãn đếm ngược
 $lblTimer = New-Object System.Windows.Forms.Label
-$lblTimer.Location = New-Object System.Drawing.Point(15, 285)
-$lblTimer.Size = New-Object System.Drawing.Size(415, 25)
-$lblTimer.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Italic)
-$lblTimer.ForeColor = [System.Drawing.Color]::Gray
+$lblTimer.Location = New-Object System.Drawing.Point(20, 325)
+$lblTimer.Size = New-Object System.Drawing.Size(422, 25)
+$lblTimer.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
+$lblTimer.ForeColor = [System.Drawing.Color]::DimGray
 $form.Controls.Add($lblTimer)
 
+# Nút bấm bắt đầu cài đặt (Flat Design)
 $btnInstall = New-Object System.Windows.Forms.Button
-$btnInstall.Location = New-Object System.Drawing.Point(155, 320)
-$btnInstall.Size = New-Object System.Drawing.Size(140, 40)
+$btnInstall.Location = New-Object System.Drawing.Point(140, 365)
+$btnInstall.Size = New-Object System.Drawing.Size(200, 42)
 $btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
-$btnInstall.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
+$btnInstall.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
+$btnInstall.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
+$btnInstall.FlatAppearance.BorderSize = 0
 
 $selectedApps = @()
 $processSelection = {
@@ -75,12 +91,13 @@ $processSelection = {
 $btnInstall.Add_Click($processSelection)
 $form.Controls.Add($btnInstall)
 
+# Bộ đếm ngược 30 giây
 $script:countdown = 30
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 1000
 $timer.Add_Tick({
-    script:countdown--
-    $lblTimer.Text = "Tự động chạy sau $script:countdown giây nếu không có thao tác..."
+    $script:countdown--
+    $lblTimer.Text = "Tự động chạy sau $script:countdown giây nếu không có tương tác..."
     if ($script:countdown -le 0) {
         $timer.Stop()
         & $processSelection
@@ -88,8 +105,8 @@ $timer.Add_Tick({
 })
 $timer.Start()
 
-$form.Add_Shown({ $form.Activate() })
-$checkedListBox.Add_MouseMove({
+# Chỉ dừng đếm ngược khi người dùng CLICK chuột thực sự vào khung
+$checkedListBox.Add_MouseDown({
     if ($script:countdown -gt 0 -and $timer.Enabled) {
         $timer.Stop()
         $lblTimer.Text = "Đã chọn thủ công (Đã tắt đếm ngược tự động)."
@@ -172,29 +189,6 @@ foreach ($item in $selectedApps) {
             }
             if ($item.Id -eq "UniKey.UniKey") {
                 $unikeyStatus = "Thành công"
-                $possiblePaths = @(
-                    "$env:ProgramFiles\UniKey\unikeynt.exe",
-                    "${env:ProgramFiles(x86)}\UniKey\unikeynt.exe",
-                    "$env:LocalAppData\Programs\UniKey\unikeynt.exe"
-                )
-                foreach ($p in $possiblePaths) {
-                    if (Test-Path $p) {
-                        $unikeyPath = $p
-                        break
-                    }
-                }
-                if (-not $unikeyPath) {
-                    $found = Get-ChildItem "C:\Program Files" -Recurse -Filter "unikeynt.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-                    if ($found) { $unikeyPath = $found.FullName }
-                }
-                
-                if ($unikeyPath) {
-                    $DesktopPath = [Environment]::GetFolderPath("Desktop")
-                    $WScriptShell = New-Object -ComObject WScript.Shell
-                    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\UniKey.lnk")
-                    $Shortcut.TargetPath = $unikeyPath
-                    $Shortcut.Save()
-                }
             }
             $extraAppsStatus += "$($item.Name): Thành công"
         } else {
@@ -205,8 +199,6 @@ foreach ($item in $selectedApps) {
             }
             if ($item.Id -eq "UniKey.UniKey") { 
                 $unikeyStatus = "Đã có sẵn"
-                $found = Get-ChildItem "C:\Program Files" -Recurse -Filter "unikeynt.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($found) { $unikeyPath = $found.FullName }
             }
             $extraAppsStatus += "$($item.Name): Đã có sẵn"
         }
@@ -251,6 +243,26 @@ foreach ($item in $selectedApps) {
 }
 
 # ==========================================
+# QUÉT TÌM ĐƯỜNG DẪN THỰC TẾ CỦA UNIKEY SAU KHI CÀI
+# ==========================================
+$possibleUniKeyNames = @("unikey*.exe", "UniKeyNT.exe")
+foreach($pattern in $possibleUniKeyNames) {
+    $foundUniKey = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "$env:LocalAppData" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($foundUniKey) {
+        $unikeyPath = $foundUniKey.FullName
+        break
+    }
+}
+
+if ($unikeyPath) {
+    $DesktopPath = [Environment]::GetFolderPath("Desktop")
+    $WScriptShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\UniKey.lnk")
+    $Shortcut.TargetPath = $unikeyPath
+    $Shortcut.Save()
+}
+
+# ==========================================
 # BÁO CÁO TỔNG KẾT VÀ MỞ DISK MANAGEMENT
 # ==========================================
 $host.UI.RawUI.WindowTitle = "Hoàn tất quá trình cài đặt!"
@@ -266,7 +278,10 @@ if ($chromePath) {
 
 Write-Host "  [ + ] UniKey                 : $unikeyStatus" -ForegroundColor Cyan
 if ($unikeyPath) {
-    Write-Host "        Path: $unikeyPath (Đã tạo Shortcut ngoài Desktop)" -ForegroundColor DarkGray
+    Write-Host "        Path: $unikeyPath" -ForegroundColor DarkGray
+    Write-Host "        (Đã tạo biểu tượng Shortcut ngoài màn hình Desktop)" -ForegroundColor DarkGray
+} else {
+    Write-Host "        Path: Không tìm thấy file thực thi" -ForegroundColor Yellow
 }
 
 foreach ($st in $extraAppsStatus) {
@@ -282,7 +297,4 @@ Write-Host "  [+] Thiết lập máy mới hoàn tất xuất sắc!" -Foregroun
 Write-Host "  [+] Đang mở Disk Management để cấu hình ổ đĩa..." -ForegroundColor Yellow
 Write-Host "=====================================================================" -ForegroundColor Green
 
-# Mở công cụ quản lý phân vùng ổ đĩa (Disk Management)
 Start-Process "diskmgmt.msc"
-
-Start-Sleep -Seconds 5
