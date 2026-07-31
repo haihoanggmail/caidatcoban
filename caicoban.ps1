@@ -4,11 +4,80 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# ==========================================
+# DANH SÁCH MỞ RỘNG (DỄ DÀNG THÊM APP SAU NÀY)
+# ==========================================
+$appList = @(
+    [PSCustomObject]@{ Name = "Google Chrome (Trình duyệt web)"; Id = "Google.Chrome"; Type = "Winget"; Checked = $true },
+    [PSCustomObject]@{ Name = "UniKey (Bộ gõ tiếng Việt)"; Id = "UniKey.UniKey"; Type = "Winget"; Checked = $true },
+    [PSCustomObject]@{ Name = "7-Zip (Phần mềm giải nén)"; Id = "7zip.7zip"; Type = "Winget"; Checked = $false },
+    [PSCustomObject]@{ Name = "VLC Media Player (Xem phim/nghe nhạc)"; Id = "VideoLAN.VLC"; Type = "Winget"; Checked = $false },
+    [PSCustomObject]@{ Name = "Hệ thống Font chữ tiêu chuẩn Hachihi"; Id = "HachihiFonts"; Type = "Font"; Checked = $true }
+)
+
+# ==========================================
+# TẠO GIAO DIỆN CHỌN APP (GUI CHECKBOX)
+# ==========================================
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Hachihi Tech - Trình Cài Đặt Tự Động Máy Mới"
+$form.Size = New-Object System.Drawing.Size(460, 420)
+$form.StartPosition = "CenterScreen"
+$form.FormBorderStyle = "FixedDialog"
+$form.MaximizeBox = $false
+
+$label = New-Object System.Windows.Forms.Label
+$label.Location = New-Object System.Drawing.Point(15, 15)
+$label.Size = New-Object System.Drawing.Size(415, 30)
+$label.Text = "Vui lòng chọn các thành phần cần cài đặt cho máy mới:"
+$label.Font = New-Object System.Drawing.Font("Arial", 10, [System.Drawing.FontStyle]::Bold)
+$form.Controls.Add($label)
+
+$checkedListBox = New-Object System.Windows.Forms.CheckedListBox
+$checkedListBox.Location = New-Object System.Drawing.Point(15, 50)
+$checkedListBox.Size = New-Object System.Drawing.Size(415, 240)
+$checkedListBox.Font = New-Object System.Drawing.Font("Arial", 9)
+
+foreach ($app in $appList) {
+    $index = $checkedListBox.Items.Add($app.Name)
+    $checkedListBox.SetItemChecked($index, $app.Checked)
+}
+$form.Controls.Add($checkedListBox)
+
+$btnInstall = New-Object System.Windows.Forms.Button
+$btnInstall.Location = New-Object System.Drawing.Point(155, 315)
+$btnInstall.Size = New-Object System.Drawing.Size(140, 40)
+$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
+$btnInstall.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
+$btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
+$btnInstall.ForeColor = [System.Drawing.Color]::White
+
+$selectedApps = @()
+$btnInstall.Add_Click({
+    for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
+        if ($checkedListBox.GetItemChecked($i)) {
+            $script:selectedApps += $appList[$i]
+        }
+    }
+    $form.Close()
+})
+$form.Controls.Add($btnInstall)
+
+[void]$form.ShowDialog()
+
+if ($selectedApps.Count -eq 0) {
+    Write-Host "[-] Bạn đã hủy quá trình cài đặt." -ForegroundColor Yellow
+    exit
+}
+
 Clear-Host
 
 # ==========================================
-# CẤU HÌNH GIAO DIỆN HACHIHI TECH
+# HIỂN THỊ LOGO HACHIHI TECH
 # ==========================================
+$host.UI.RawUI.WindowTitle = "Hachihi Tech - Đang chuẩn bị hệ thống..."
 Write-Host "=====================================================================" -ForegroundColor Cyan
 Write-Host "                             ▄███▄                                   " -ForegroundColor Cyan
 Write-Host "                             ▀███▀                                   " -ForegroundColor Cyan
@@ -27,98 +96,95 @@ Write-Host "             HỆ THỐNG CÀI ĐẶT TỰ ĐỘNG MÁY MỚI (ONE-C
 Write-Host "             By phòng kỹ thuật hachihi - Phiên bản chuyên nghiệp      " -ForegroundColor Yellow 
 Write-Host "=====================================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "[*] Đang khởi chạy quy trình thiết lập hệ thống tự động..." -ForegroundColor Green
-Write-Host "[*] Vui lòng không tắt cửa sổ này trong quá trình cài đặt." -ForegroundColor Yellow
-Start-Sleep -Seconds 2
 
-# Khởi tạo biến lưu trạng thái báo cáo
-$chromeStatus = "Thất bại"
-$unikeyStatus = "Thất bại"
+$chromeStatus = "Bỏ qua"
+$unikeyStatus = "Bỏ qua"
+$extraAppsStatus = @()
 $fontCount = 0
+$fontInstalledCount = 0
 
 # ==========================================
-# BƯỚC 1: CÀI ĐẶT PHẦN MỀM QUA WINGET
+# THỰC THI CÀI ĐẶT DỰA TRÊN LỰA CHỌN
 # ==========================================
-Write-Host ""
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "[ BƯỚC 1/3 ] CÀI ĐẶT PHẦN MỀM TIỆN ÍCH (CHROME, UNIKEY)" -ForegroundColor Cyan
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-
-Write-Host "  - Đang cài đặt Google Chrome..." -ForegroundColor White
-winget install --id Google.Chrome -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
-if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) { 
-    $chromeStatus = "Đã cài thành công"
-    Write-Host "    [OK] Google Chrome đã sẵn sàng." -ForegroundColor Green
-} else {
-    Write-Host "    [!] Google Chrome gặp sự cố khi cài đặt." -ForegroundColor Yellow
-}
-
-Write-Host "  - Đang cài đặt UniKey..." -ForegroundColor White
-winget install --id UniKey.UniKey -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
-if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) { 
-    $unikeyStatus = "Đã cài thành công"
-    Write-Host "    [OK] UniKey đã sẵn sàng." -ForegroundColor Green
-} else {
-    Write-Host "    [!] UniKey gặp sự cố khi cài đặt." -ForegroundColor Yellow
-}
-
-# ==========================================
-# BƯỚC 2: TẢI VÀ CÀI ĐẶT FONT CHỮ
-# ==========================================
-Write-Host ""
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "[ BƯỚC 2/3 ] TẢI VÀ TÍCH HỢP BỘ FONT TIÊU CHUẨN" -ForegroundColor Cyan
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-
-$tempDir = "$env:TEMP\HachihiFonts"
-if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-New-Item -ItemType Directory -Path $tempDir | Out-Null
-
-$fontZipUrl = "https://drive.google.com/uc?export=download&id=1wGyWMJRc18poAYfaSfN2EoK2M3-iObQO"
-$zipPath = "$tempDir\fonts.zip"
-$extractPath = "$tempDir\extracted"
-
-Write-Host "  - Đang tải gói Font hệ thống..." -ForegroundColor White
-try {
-    Invoke-WebRequest -Uri $fontZipUrl -OutFile $zipPath
-    Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-
-    # Đếm số lượng file font hợp lệ (.ttf, .otf)
-    $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
-    $fontCount = $fontFiles.Count
-
-    Write-Host "  - Đang cài đặt $fontCount Font chữ vào hệ thống Windows..." -ForegroundColor White
-    $fonts = (New-Object -ComObject Shell.Application).Namespace(0x14)
-    foreach ($font in $fontFiles) {
-        $fonts.CopyHere($font.FullName, 0x10)
+foreach ($item in $selectedApps) {
+    if ($item.Type -eq "Winget") {
+        $host.UI.RawUI.WindowTitle = "Đang cài đặt: $($item.Name)"
+        Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
+        Write-Host " [+] Đang cài đặt: $($item.Name)..." -ForegroundColor White
+        
+        winget install --id $item.Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
+        
+        if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
+            Write-Host "     [OK] Cài đặt thành công!" -ForegroundColor Green
+            if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã cài thành công" }
+            if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã cài thành công" }
+            $extraAppsStatus += "$($item.Name): Thành công"
+        } else {
+            Write-Host "     [!] Gặp sự cố khi cài đặt (Có thể đã có sẵn trên máy)." -ForegroundColor Yellow
+            if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã có sẵn / Bỏ qua" }
+            if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã có sẵn / Bỏ qua" }
+            $extraAppsStatus += "$($item.Name): Đã có sẵn"
+        }
     }
-    Write-Host "    [OK] Đã tích hợp thành công bộ font chữ." -ForegroundColor Green
-} catch {
-    Write-Host "  [!] Không thể tải hoặc cài đặt font tự động." -ForegroundColor Yellow
+    
+    if ($item.Type -eq "Font") {
+        $host.UI.RawUI.WindowTitle = "Đang cài đặt bộ Font chữ hệ thống..."
+        Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
+        Write-Host " [+] Đang tải và kiểm tra Bộ Font hệ thống..." -ForegroundColor White
+        
+        $tempDir = "$env:TEMP\HachihiFonts"
+        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+        New-Item -ItemType Directory -Path $tempDir | Out-Null
+        
+        $fontZipUrl = "https://drive.google.com/uc?export=download&id=1wGyWMJRc18poAYfaSfN2EoK2M3-iObQO"
+        $zipPath = "$tempDir\fonts.zip"
+        $extractPath = "$tempDir\extracted"
+        
+        try {
+            Invoke-WebRequest -Uri $fontZipUrl -OutFile $zipPath
+            Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+            
+            $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
+            $fontCount = $fontFiles.Count
+            
+            # Thư mục font hệ thống Windows
+            $winFontDir = "$env:SystemRoot\Fonts"
+            $fontsNamespace = (New-Object -ComObject Shell.Application).Namespace(0x14)
+            
+            foreach ($font in $fontFiles) {
+                $targetPath = Join-Path $winFontDir $font.Name
+                # Kiểm tra nếu font chưa có thì mới cài để tránh hiện bảng hỏi trùng lặp
+                if (-not (Test-Path $targetPath)) {
+                    $fontsNamespace.CopyHere($font.FullName, 0x10)
+                    $script:fontInstalledCount++
+                }
+            }
+            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $fontInstalledCount font." -ForegroundColor Green
+        } catch {
+            Write-Host "     [!] Không thể tải font chữ." -ForegroundColor Yellow
+        }
+        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+    }
 }
 
 # ==========================================
-# BƯỚC 3: DỌN DẸP
+# BÁO CÁO TỔNG KẾT (SUMMARY REPORT)
 # ==========================================
-Write-Host ""
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "[ BƯỚC 3/3 ] DỌN DẸP HỆ THỐNG" -ForegroundColor Cyan
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-Write-Host "    [OK] Đã dọn dẹp các tệp tin tạm thời." -ForegroundColor Green
-
-# ==========================================
-# BẢNG TỔNG KẾT (SUMMARY REPORT) CHUYÊN NGHIỆP
-# ==========================================
+$host.UI.RawUI.WindowTitle = "Hoàn tất quá trình cài đặt!"
 Write-Host ""
 Write-Host "=====================================================================" -ForegroundColor Green
 Write-Host "                  BÁO CÁO KẾT QUẢ CÀI ĐẶT HỆ THỐNG                    " -ForegroundColor Green
 Write-Host "=====================================================================" -ForegroundColor Green
-Write-Host "  [ + ] Trạng thái Google Chrome : " -NoNewline; Write-Host "$chromeStatus" -ForegroundColor Cyan
-Write-Host "  [ + ] Trạng thái UniKey        : " -NoNewline; Write-Host "$unikeyStatus" -ForegroundColor Cyan
-Write-Host "  [ + ] Số lượng font chữ đã cài : " -NoNewline; Write-Host "$fontCount font" -ForegroundColor Cyan
+Write-Host "  [ + ] Google Chrome          : " -NoNewline; Write-Host "$chromeStatus" -ForegroundColor Cyan
+Write-Host "  [ + ] UniKey                 : " -NoNewline; Write-Host "$unikeyStatus" -ForegroundColor Cyan
+foreach ($st in $extraAppsStatus) {
+    Write-Host "  [ + ] $st" -ForegroundColor Cyan
+}
+if ($fontCount -gt 0) {
+    Write-Host "  [ + ] Font chữ (Đã cài mới)  : " -NoNewline; Write-Host "$fontInstalledCount / $fontCount font" -ForegroundColor Cyan
+}
 Write-Host "---------------------------------------------------------------------" -ForegroundColor Green
-Write-Host "  [+] Quá trình thiết lập máy mới đã hoàn tất xuất sắc!" -ForegroundColor White
+Write-Host "  [+] Thiết lập máy mới hoàn tất xuất sắc!" -ForegroundColor White
 Write-Host "  [+] Cửa sổ này sẽ tự động đóng lại sau 10 giây..." -ForegroundColor Yellow
 Write-Host "=====================================================================" -ForegroundColor Green
 
