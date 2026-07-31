@@ -46,7 +46,6 @@ foreach ($app in $appList) {
 }
 $form.Controls.Add($checkedListBox)
 
-# Nhãn hiển thị đếm ngược thời gian
 $lblTimer = New-Object System.Windows.Forms.Label
 $lblTimer.Location = New-Object System.Drawing.Point(15, 285)
 $lblTimer.Size = New-Object System.Drawing.Size(415, 25)
@@ -63,8 +62,6 @@ $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
 
 $selectedApps = @()
-
-# Logic xử lý lấy danh sách app được chọn
 $processSelection = {
     $script:selectedApps = @()
     for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
@@ -78,10 +75,9 @@ $processSelection = {
 $btnInstall.Add_Click($processSelection)
 $form.Controls.Add($btnInstall)
 
-# Thiết lập bộ đếm ngược 30 giây
 $script:countdown = 30
 $timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 1000 # 1 giây
+$timer.Interval = 1000
 $timer.Add_Tick({
     script:countdown--
     $lblTimer.Text = "Tự động chạy sau $script:countdown giây nếu không có thao tác..."
@@ -92,7 +88,6 @@ $timer.Add_Tick({
 })
 $timer.Start()
 
-# Khi form hiển thị, bắt sự kiện để hủy đếm ngược nếu người dùng có tương tác chuột/phím
 $form.Add_Shown({ $form.Activate() })
 $checkedListBox.Add_MouseMove({
     if ($script:countdown -gt 0 -and $timer.Enabled) {
@@ -136,6 +131,8 @@ Write-Host ""
 
 $chromeStatus = "Bỏ qua"
 $unikeyStatus = "Bỏ qua"
+$chromePath = ""
+$unikeyPath = ""
 $extraAppsStatus = @()
 $fontCount = 0
 $fontInstalledCount = 0
@@ -149,19 +146,57 @@ foreach ($item in $selectedApps) {
         Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
         Write-Host " [+] Đang kiểm tra và cài đặt: $($item.Name)..." -ForegroundColor White
         
-        # Dùng winget để cài đặt ngầm
         winget install --id $item.Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
         
-        # $LASTEXITCODE bằng 0 (Thành công) hoặc -1978335189 (Đã được cài đặt phiên bản mới nhất trên máy rồi)
         if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
             Write-Host "     [OK] Đã sẵn sàng trên hệ thống." -ForegroundColor Green
-            if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã cài / Đã có sẵn" }
-            if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã cài / Đã có sẵn" }
-            $extraAppsStatus += "$($item.Name): Sẵn sàng"
+            
+            # Dò tìm đường dẫn thực tế và tạo shortcut tối ưu
+            if ($item.Id -eq "Google.Chrome") {
+                $chromeStatus = "Thành công"
+                $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+            }
+            if ($item.Id -eq "UniKey.UniKey") {
+                $unikeyStatus = "Thành công"
+                # Tìm đường dẫn UniKey thực tế trên máy
+                $possiblePaths = @(
+                    "$env:ProgramFiles\UniKey\unikeynt.exe",
+                    "${env:ProgramFiles(x86)}\UniKey\unikeynt.exe",
+                    "$env:LocalAppData\Programs\UniKey\unikeynt.exe"
+                )
+                foreach ($p in $possiblePaths) {
+                    if (Test-Path $p) {
+                        $unikeyPath = $p
+                        break
+                    }
+                }
+                # Nếu không tìm thấy mặc định, quét trong thư mục Program Files
+                if (-not $unikeyPath) {
+                    $found = Get-ChildItem "C:\Program Files" -Recurse -Filter "unikeynt.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($found) { $unikeyPath = $found.FullName }
+                }
+                
+                # Tạo Shortcut ra Desktop cho UniKey để dễ thấy
+                if ($unikeyPath) {
+                    $DesktopPath = [Environment]::GetFolderPath("Desktop")
+                    $WScriptShell = New-Object -ComObject WScript.Shell
+                    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\UniKey.lnk")
+                    $Shortcut.TargetPath = $unikeyPath
+                    $Shortcut.Save()
+                }
+            }
+            $extraAppsStatus += "$($item.Name): Thành công"
         } else {
-            Write-Host "     [!] Phần mềm có thể đã tồn tại hoặc gặp ngoại lệ." -ForegroundColor Yellow
-            if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã có sẵn / Bỏ qua" }
-            if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã có sẵn / Bỏ qua" }
+            Write-Host "     [!] Phần mềm đã có sẵn trên hệ thống." -ForegroundColor Yellow
+            if ($item.Id -eq "Google.Chrome") { 
+                $chromeStatus = "Đã có sẵn"
+                $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+            }
+            if ($item.Id -eq "UniKey.UniKey") { 
+                $unikeyStatus = "Đã có sẵn"
+                $found = Get-ChildItem "C:\Program Files" -Recurse -Filter "unikeynt.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) { $unikeyPath = $found.FullName }
+            }
             $extraAppsStatus += "$($item.Name): Đã có sẵn"
         }
     }
@@ -191,7 +226,6 @@ foreach ($item in $selectedApps) {
             
             foreach ($font in $fontFiles) {
                 $targetPath = Join-Path $winFontDir $font.Name
-                # Kiểm tra nếu font đã có trong máy thì bỏ qua tuyệt đối không hiện bảng hỏi trùng
                 if (-not (Test-Path $targetPath)) {
                     $fontsNamespace.CopyHere($font.FullName, 0x10)
                     $script:fontInstalledCount++
@@ -206,24 +240,34 @@ foreach ($item in $selectedApps) {
 }
 
 # ==========================================
-# BÁO CÁO TỔNG KẾT (SUMMARY REPORT)
+# BÁO CÁO TỔNG KẾT (CÓ HIỂN THỊ ĐƯỜNG DẪN)
 # ==========================================
 $host.UI.RawUI.WindowTitle = "Hoàn tất quá trình cài đặt!"
 Write-Host ""
 Write-Host "=====================================================================" -ForegroundColor Green
 Write-Host "                  BÁO CÁO KẾT QUẢ CÀI ĐẶT HỆ THỐNG                    " -ForegroundColor Green
 Write-Host "=====================================================================" -ForegroundColor Green
-Write-Host "  [ + ] Google Chrome          : " -NoNewline; Write-Host "$chromeStatus" -ForegroundColor Cyan
-Write-Host "  [ + ] UniKey                 : " -NoNewline; Write-Host "$unikeyStatus" -ForegroundColor Cyan
+Write-Host "  [ + ] Google Chrome          : $chromeStatus" -ForegroundColor Cyan
+if ($chromePath) {
+    Write-Host "        Path: $chromePath" -ForegroundColor DarkGray
+}
+
+Write-Host "  [ + ] UniKey                 : $unikeyStatus" -ForegroundColor Cyan
+if ($unikeyPath) {
+    Write-Host "        Path: $unikeyPath (Đã tạo Shortcut ngoài Desktop)" -ForegroundColor DarkGray
+}
+
 foreach ($st in $extraAppsStatus) {
     Write-Host "  [ + ] $st" -ForegroundColor Cyan
 }
+
 if ($fontCount -gt 0) {
-    Write-Host "  [ + ] Font chữ (Đã cài mới)  : " -NoNewline; Write-Host "$fontInstalledCount / $fontCount font" -ForegroundColor Cyan
+    Write-Host "  [ + ] Font chữ (Đã cài mới)  : $fontInstalledCount / $fontCount font" -ForegroundColor Cyan
+    Write-Host "        Path: C:\Windows\Fonts" -ForegroundColor DarkGray
 }
 Write-Host "---------------------------------------------------------------------" -ForegroundColor Green
 Write-Host "  [+] Thiết lập máy mới hoàn tất xuất sắc!" -ForegroundColor White
-Write-Host "  [+] Cửa sổ này sẽ tự động đóng lại sau 10 giây..." -ForegroundColor Yellow
+Write-Host "  [+] Cửa sổ này sẽ tự động đóng lại sau 15 giây..." -ForegroundColor Yellow
 Write-Host "=====================================================================" -ForegroundColor Green
 
-Start-Sleep -Seconds 10
+Start-Sleep -Seconds 15
