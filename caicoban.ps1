@@ -15,9 +15,10 @@ $appList = @(
     [PSCustomObject]@{ Name = "UniKey (Bộ gõ tiếng Việt)"; Id = "UniKey.UniKey"; Type = "Winget"; Checked = $true },
     [PSCustomObject]@{ Name = "7-Zip (Phần mềm giải nén)"; Id = "7zip.7zip"; Type = "Winget"; Checked = $false },
     [PSCustomObject]@{ Name = "VLC Media Player (Xem phim/nghe nhạc)"; Id = "VideoLAN.VLC"; Type = "Winget"; Checked = $false },
-    [PSCustomObject]@{ Name = "Zalo PC (Ứng dụng nhắn tin)"; Id = "Zalo.Zalo"; Type = "Winget"; Checked = $true }, # <-- Thêm dòng này vào đây
+    [PSCustomObject]@{ Name = "Zalo PC (Ứng dụng nhắn tin)"; Id = "Zalo.Zalo"; Type = "Winget"; Checked = $true },
     [PSCustomObject]@{ Name = "Hệ thống Font chữ tiêu chuẩn Hachihi"; Id = "HachihiFonts"; Type = "Font"; Checked = $true }
 )
+
 # ==========================================
 # TẠO GIAO DIỆN HIỆN ĐẠI (MODERN UI)
 # ==========================================
@@ -163,8 +164,10 @@ try {
 
 $chromeStatus = "Bỏ qua"
 $unikeyStatus = "Bỏ qua"
+$zaloStatus = "Bỏ qua"
 $chromePath = ""
 $unikeyPath = ""
+$zaloPath = ""
 $extraAppsStatus = @()
 $fontCount = 0
 $fontInstalledCount = 0
@@ -190,6 +193,9 @@ foreach ($item in $selectedApps) {
             if ($item.Id -eq "UniKey.UniKey") {
                 $unikeyStatus = "Thành công"
             }
+            if ($item.Id -eq "Zalo.Zalo") {
+                $zaloStatus = "Thành công"
+            }
             $extraAppsStatus += "$($item.Name): Thành công"
         } else {
             Write-Host "     [!] Phần mềm đã có sẵn trên hệ thống." -ForegroundColor Yellow
@@ -197,14 +203,11 @@ foreach ($item in $selectedApps) {
                 $chromeStatus = "Đã có sẵn"
                 $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
             }
-
-            if ($item.Id -eq "Zalo.Zalo") {
-                $zaloStatus = "Thành công"
-            }
-
-            
             if ($item.Id -eq "UniKey.UniKey") { 
                 $unikeyStatus = "Đã có sẵn"
+            }
+            if ($item.Id -eq "Zalo.Zalo") { 
+                $zaloStatus = "Đã có sẵn"
             }
             $extraAppsStatus += "$($item.Name): Đã có sẵn"
         }
@@ -249,11 +252,15 @@ foreach ($item in $selectedApps) {
 }
 
 # ==========================================
-# QUÉT TÌM ĐƯỜNG DẪN THỰC TẾ CỦA UNIKEY SAU KHI CÀI
+# QUÉT TÌM ĐƯỜNG DẪN THỰC TẾ & TẠO SHORTCUT
 # ==========================================
+$DesktopPath = [Environment]::GetFolderPath("Desktop")
+$WScriptShell = New-Object -ComObject WScript.Shell
+
+# Quét UniKey (Quét toàn bộ Program Files, Program Files (x86) và LocalAppData)
 $possibleUniKeyNames = @("unikey*.exe", "UniKeyNT.exe")
 foreach($pattern in $possibleUniKeyNames) {
-    $foundUniKey = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "$env:LocalAppData" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
+    $foundUniKey = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "$env:LocalAppData", "$env:ProgramData" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($foundUniKey) {
         $unikeyPath = $foundUniKey.FullName
         break
@@ -261,10 +268,24 @@ foreach($pattern in $possibleUniKeyNames) {
 }
 
 if ($unikeyPath) {
-    $DesktopPath = [Environment]::GetFolderPath("Desktop")
-    $WScriptShell = New-Object -ComObject WScript.Shell
     $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\UniKey.lnk")
     $Shortcut.TargetPath = $unikeyPath
+    $Shortcut.Save()
+}
+
+# Quét Zalo PC
+$possibleZaloNames = @("Zalo.exe")
+foreach($pattern in $possibleZaloNames) {
+    $foundZalo = Get-ChildItem -Path "$env:LocalAppData\Programs\Zalo", "C:\Program Files", "C:\Program Files (x86)" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($foundZalo) {
+        $zaloPath = $foundZalo.FullName
+        break
+    }
+}
+
+if ($zaloPath) {
+    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\Zalo PC.lnk")
+    $Shortcut.TargetPath = $zaloPath
     $Shortcut.Save()
 }
 
@@ -290,27 +311,18 @@ if ($unikeyPath) {
     Write-Host "        Path: Không tìm thấy file thực thi" -ForegroundColor Yellow
 }
 
-$possibleZaloNames = @("Zalo.exe")
-foreach($pattern in $possibleZaloNames) {
-    $foundZalo = Get-ChildItem -Path "$env:LocalAppData\Programs\Zalo" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($foundZalo) {
-        $zaloPath = $foundZalo.FullName
-        break
-    }
-}
-
+Write-Host "  [ + ] Zalo PC                : $zaloStatus" -ForegroundColor Cyan
 if ($zaloPath) {
-    $DesktopPath = [Environment]::GetFolderPath("Desktop")
-    $WScriptShell = New-Object -ComObject WScript.Shell
-    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\Zalo PC.lnk")
-    $Shortcut.TargetPath = $zaloPath
-    $Shortcut.Save()
+    Write-Host "        Path: $zaloPath" -ForegroundColor DarkGray
+    Write-Host "        (Đã tạo biểu tượng Shortcut ngoài màn hình Desktop)" -ForegroundColor DarkGray
+} else {
+    Write-Host "        Path: Không tìm thấy file thực thi" -ForegroundColor Yellow
 }
-
-
 
 foreach ($st in $extraAppsStatus) {
-    Write-Host "  [ + ] $st" -ForegroundColor Cyan
+    if ($st -notmatch "UniKey" -and $st -notmatch "Google Chrome" -and $st -notmatch "Zalo") {
+        Write-Host "  [ + ] $st" -ForegroundColor Cyan
+    }
 }
 
 if ($fontCount -gt 0) {
