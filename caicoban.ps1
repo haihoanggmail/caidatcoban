@@ -15,9 +15,9 @@ $appList = @(
     [PSCustomObject]@{ Name = "UniKey (Bộ gõ tiếng Việt)"; Id = "UniKey.UniKey"; Type = "Winget"; Checked = $true },
     [PSCustomObject]@{ Name = "7-Zip (Phần mềm giải nén)"; Id = "7zip.7zip"; Type = "Winget"; Checked = $false },
     [PSCustomObject]@{ Name = "VLC Media Player (Xem phim/nghe nhạc)"; Id = "VideoLAN.VLC"; Type = "Winget"; Checked = $false },
+    [PSCustomObject]@{ Name = "Zalo PC (Ứng dụng nhắn tin)"; Id = "Zalo.Zalo"; Type = "Winget"; Checked = $true }, # <-- Thêm dòng này vào đây
     [PSCustomObject]@{ Name = "Hệ thống Font chữ tiêu chuẩn Hachihi"; Id = "HachihiFonts"; Type = "Font"; Checked = $true }
 )
-
 # ==========================================
 # TẠO GIAO DIỆN HIỆN ĐẠI (MODERN UI)
 # ==========================================
@@ -197,6 +197,12 @@ foreach ($item in $selectedApps) {
                 $chromeStatus = "Đã có sẵn"
                 $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
             }
+
+            if ($item.Id -eq "Zalo.Zalo") {
+                $zaloStatus = "Thành công"
+            }
+
+            
             if ($item.Id -eq "UniKey.UniKey") { 
                 $unikeyStatus = "Đã có sẵn"
             }
@@ -283,6 +289,25 @@ if ($unikeyPath) {
 } else {
     Write-Host "        Path: Không tìm thấy file thực thi" -ForegroundColor Yellow
 }
+
+$possibleZaloNames = @("Zalo.exe")
+foreach($pattern in $possibleZaloNames) {
+    $foundZalo = Get-ChildItem -Path "$env:LocalAppData\Programs\Zalo" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($foundZalo) {
+        $zaloPath = $foundZalo.FullName
+        break
+    }
+}
+
+if ($zaloPath) {
+    $DesktopPath = [Environment]::GetFolderPath("Desktop")
+    $WScriptShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\Zalo PC.lnk")
+    $Shortcut.TargetPath = $zaloPath
+    $Shortcut.Save()
+}
+
+
 
 foreach ($st in $extraAppsStatus) {
     Write-Host "  [ + ] $st" -ForegroundColor Cyan
