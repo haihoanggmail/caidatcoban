@@ -148,6 +148,14 @@ Write-Host "====================================================================
 Write-Host ""
 
 # ==========================================
+# KHỞI TẠO THƯ MỤC CHUẨN CỦA HACHIHI SOFTWARE
+# ==========================================
+$hachihiDir = "C:\HachihiSoftware"
+if (-not (Test-Path $hachihiDir)) {
+    New-Item -ItemType Directory -Path $hachihiDir | Out-Null
+}
+
+# ==========================================
 # THAO TÁC CƠ BẢN: CÀI ĐẶT MÚI GIỜ & ĐỒNG BỘ THỜI GIAN
 # ==========================================
 Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
@@ -213,10 +221,10 @@ foreach ($item in $selectedApps) {
         }
     }
     
-if ($item.Type -eq "Font") {
+    if ($item.Type -eq "Font") {
         $host.UI.RawUI.WindowTitle = "Đang cài đặt bộ Font chữ hệ thống..."
         Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang tải và cài đặt nhanh bộ Font hệ thống..." -ForegroundColor White
+        Write-Host " [+] Đang tải và cài đặt nhanh bộ Font hệ thống (Tốc độ cao)..." -ForegroundColor White
         
         $tempDir = "$env:TEMP\HachihiFonts"
         if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
@@ -237,10 +245,8 @@ if ($item.Type -eq "Font") {
             foreach ($font in $fontFiles) {
                 $targetPath = Join-Path $winFontDir $font.Name
                 if (-not (Test-Path $targetPath)) {
-                    # 1. Copy trực tiếp file vào thư mục Fonts tốc độ cao
                     Copy-Item $font.FullName -Destination $winFontDir -Force
                     
-                    # 2. Lấy tên hiển thị của font từ file để đăng ký Registry (tránh lỗi font chữ tiếng Việt)
                     $fontName = [System.Drawing.FontFamily]::FromStream((gi $font.FullName)).Name
                     if ($fontName) {
                         $regName = "$fontName (TrueType)"
@@ -250,7 +256,7 @@ if ($item.Type -eq "Font") {
                     $script:fontInstalledCount++
                 }
             }
-            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $script:fontInstalledCount font (Tốc độ cao)." -ForegroundColor Green
+            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $script:fontInstalledCount font." -ForegroundColor Green
         } catch {
             Write-Host "     [!] Không thể tải hoặc cài đặt font chữ." -ForegroundColor Yellow
         }
@@ -259,38 +265,33 @@ if ($item.Type -eq "Font") {
 }
 
 # ==========================================
-# QUÉT TÌM ĐƯỜNG DẪN THỰC TẾ & TẠO SHORTCUT
+# THIẾT LẬP ĐƯỜNG DẪN CHUẨN & TẠO SHORTCUT
 # ==========================================
 $DesktopPath = [Environment]::GetFolderPath("Desktop")
 $WScriptShell = New-Object -ComObject WScript.Shell
 
-# Quét UniKey (Quét toàn bộ Program Files, Program Files (x86) và LocalAppData)
-$possibleUniKeyNames = @("unikey*.exe", "UniKeyNT.exe")
-foreach($pattern in $possibleUniKeyNames) {
-    $foundUniKey = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "$env:LocalAppData", "$env:ProgramData" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($foundUniKey) {
-        $unikeyPath = $foundUniKey.FullName
-        break
-    }
+# 1. Đường dẫn UniKey cố định (Hỗ trợ copy thẳng vào thư mục chuẩn nếu muốn)
+$unikeyPath = "$hachihiDir\UniKeyNT.exe"
+# Nếu file chưa có trong thư mục chuẩn, quét nhanh tìm nó ở thư mục cài đặt của Winget
+if (-not (Test-Path $unikeyPath)) {
+    $foundUniKey = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "C:\ProgramData" -Recurse -Filter "UniKeyNT.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($foundUniKey) { $unikeyPath = $foundUniKey.FullName }
 }
 
-if ($unikeyPath) {
+if (Test-Path $unikeyPath) {
     $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\UniKey.lnk")
     $Shortcut.TargetPath = $unikeyPath
     $Shortcut.Save()
 }
 
-# Quét Zalo PC
-$possibleZaloNames = @("Zalo.exe")
-foreach($pattern in $possibleZaloNames) {
-    $foundZalo = Get-ChildItem -Path "$env:LocalAppData\Programs\Zalo", "C:\Program Files", "C:\Program Files (x86)" -Recurse -Filter $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($foundZalo) {
-        $zaloPath = $foundZalo.FullName
-        break
-    }
+# 2. Đường dẫn Zalo PC chuẩn theo thư mục User thực tế
+$zaloPath = "$env:SystemDrive\Users\$env:USERNAME\AppData\Local\Programs\Zalo\Zalo.exe"
+if (-not (Test-Path $zaloPath)) {
+    # Dự phòng tìm theo biến môi trườngLocalAppData
+    $zaloPath = "$env:LocalAppData\Programs\Zalo\Zalo.exe"
 }
 
-if ($zaloPath) {
+if (Test-Path $zaloPath) {
     $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\Zalo PC.lnk")
     $Shortcut.TargetPath = $zaloPath
     $Shortcut.Save()
@@ -311,7 +312,7 @@ if ($chromePath) {
 }
 
 Write-Host "  [ + ] UniKey                 : $unikeyStatus" -ForegroundColor Cyan
-if ($unikeyPath) {
+if (Test-Path $unikeyPath) {
     Write-Host "        Path: $unikeyPath" -ForegroundColor DarkGray
     Write-Host "        (Đã tạo biểu tượng Shortcut ngoài màn hình Desktop)" -ForegroundColor DarkGray
 } else {
@@ -319,7 +320,7 @@ if ($unikeyPath) {
 }
 
 Write-Host "  [ + ] Zalo PC                : $zaloStatus" -ForegroundColor Cyan
-if ($zaloPath) {
+if (Test-Path $zaloPath) {
     Write-Host "        Path: $zaloPath" -ForegroundColor DarkGray
     Write-Host "        (Đã tạo biểu tượng Shortcut ngoài màn hình Desktop)" -ForegroundColor DarkGray
 } else {
