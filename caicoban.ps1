@@ -19,11 +19,11 @@ $appList = @(
 )
 
 # ==========================================
-# TẠO GIAO DIỆN CHỌN APP (GUI CHECKBOX)
+# TẠO GIAO DIỆN CHỌN APP (CÓ ĐẾM NGƯỢC 30 GIÂY)
 # ==========================================
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "Hachihi Tech - Trình Cài Đặt Tự Động Máy Mới"
-$form.Size = New-Object System.Drawing.Size(460, 420)
+$form.Size = New-Object System.Drawing.Size(460, 440)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -37,7 +37,7 @@ $form.Controls.Add($label)
 
 $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
 $checkedListBox.Location = New-Object System.Drawing.Point(15, 50)
-$checkedListBox.Size = New-Object System.Drawing.Size(415, 240)
+$checkedListBox.Size = New-Object System.Drawing.Size(415, 230)
 $checkedListBox.Font = New-Object System.Drawing.Font("Arial", 9)
 
 foreach ($app in $appList) {
@@ -46,8 +46,16 @@ foreach ($app in $appList) {
 }
 $form.Controls.Add($checkedListBox)
 
+# Nhãn hiển thị đếm ngược thời gian
+$lblTimer = New-Object System.Windows.Forms.Label
+$lblTimer.Location = New-Object System.Drawing.Point(15, 285)
+$lblTimer.Size = New-Object System.Drawing.Size(415, 25)
+$lblTimer.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Italic)
+$lblTimer.ForeColor = [System.Drawing.Color]::Gray
+$form.Controls.Add($lblTimer)
+
 $btnInstall = New-Object System.Windows.Forms.Button
-$btnInstall.Location = New-Object System.Drawing.Point(155, 315)
+$btnInstall.Location = New-Object System.Drawing.Point(155, 320)
 $btnInstall.Size = New-Object System.Drawing.Size(140, 40)
 $btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
 $btnInstall.Font = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
@@ -55,15 +63,44 @@ $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
 
 $selectedApps = @()
-$btnInstall.Add_Click({
+
+# Logic xử lý lấy danh sách app được chọn
+$processSelection = {
+    $script:selectedApps = @()
     for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
         if ($checkedListBox.GetItemChecked($i)) {
             $script:selectedApps += $appList[$i]
         }
     }
     $form.Close()
-})
+}
+
+$btnInstall.Add_Click($processSelection)
 $form.Controls.Add($btnInstall)
+
+# Thiết lập bộ đếm ngược 30 giây
+$script:countdown = 30
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 1000 # 1 giây
+$timer.Add_Tick({
+    script:countdown--
+    $lblTimer.Text = "Tự động chạy sau $script:countdown giây nếu không có thao tác..."
+    if ($script:countdown -le 0) {
+        $timer.Stop()
+        & $processSelection
+    }
+})
+$timer.Start()
+
+# Khi form hiển thị, bắt sự kiện để hủy đếm ngược nếu người dùng có tương tác chuột/phím
+$form.Add_Shown({ $form.Activate() })
+$checkedListBox.Add_MouseMove({
+    if ($script:countdown -gt 0 -and $timer.Enabled) {
+        $timer.Stop()
+        $lblTimer.Text = "Đã chọn thủ công (Đã tắt đếm ngược tự động)."
+        $lblTimer.ForeColor = [System.Drawing.Color]::DarkGreen
+    }
+})
 
 [void]$form.ShowDialog()
 
@@ -110,17 +147,19 @@ foreach ($item in $selectedApps) {
     if ($item.Type -eq "Winget") {
         $host.UI.RawUI.WindowTitle = "Đang cài đặt: $($item.Name)"
         Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang cài đặt: $($item.Name)..." -ForegroundColor White
+        Write-Host " [+] Đang kiểm tra và cài đặt: $($item.Name)..." -ForegroundColor White
         
+        # Dùng winget để cài đặt ngầm
         winget install --id $item.Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
         
+        # $LASTEXITCODE bằng 0 (Thành công) hoặc -1978335189 (Đã được cài đặt phiên bản mới nhất trên máy rồi)
         if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
-            Write-Host "     [OK] Cài đặt thành công!" -ForegroundColor Green
-            if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã cài thành công" }
-            if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã cài thành công" }
-            $extraAppsStatus += "$($item.Name): Thành công"
+            Write-Host "     [OK] Đã sẵn sàng trên hệ thống." -ForegroundColor Green
+            if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã cài / Đã có sẵn" }
+            if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã cài / Đã có sẵn" }
+            $extraAppsStatus += "$($item.Name): Sẵn sàng"
         } else {
-            Write-Host "     [!] Gặp sự cố khi cài đặt (Có thể đã có sẵn trên máy)." -ForegroundColor Yellow
+            Write-Host "     [!] Phần mềm có thể đã tồn tại hoặc gặp ngoại lệ." -ForegroundColor Yellow
             if ($item.Id -eq "Google.Chrome") { $chromeStatus = "Đã có sẵn / Bỏ qua" }
             if ($item.Id -eq "UniKey.UniKey") { $unikeyStatus = "Đã có sẵn / Bỏ qua" }
             $extraAppsStatus += "$($item.Name): Đã có sẵn"
@@ -147,19 +186,18 @@ foreach ($item in $selectedApps) {
             $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
             $fontCount = $fontFiles.Count
             
-            # Thư mục font hệ thống Windows
             $winFontDir = "$env:SystemRoot\Fonts"
             $fontsNamespace = (New-Object -ComObject Shell.Application).Namespace(0x14)
             
             foreach ($font in $fontFiles) {
                 $targetPath = Join-Path $winFontDir $font.Name
-                # Kiểm tra nếu font chưa có thì mới cài để tránh hiện bảng hỏi trùng lặp
+                # Kiểm tra nếu font đã có trong máy thì bỏ qua tuyệt đối không hiện bảng hỏi trùng
                 if (-not (Test-Path $targetPath)) {
                     $fontsNamespace.CopyHere($font.FullName, 0x10)
                     $script:fontInstalledCount++
                 }
             }
-            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $fontInstalledCount font." -ForegroundColor Green
+            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $script:fontInstalledCount font." -ForegroundColor Green
         } catch {
             Write-Host "     [!] Không thể tải font chữ." -ForegroundColor Yellow
         }
