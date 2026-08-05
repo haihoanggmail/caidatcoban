@@ -1,4 +1,7 @@
-# Yêu cầu chạy quyền Administrator
+# =====================================================================
+# HACHIHI DEPLOYMENT TOOL v3.0 MASTER EDITION
+# =====================================================================
+
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
@@ -7,339 +10,289 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# ==========================================
-# DANH SÁCH MỞ RỘNG (DỄ DÀNG THÊM APP SAU NÀY)
-# ==========================================
-$appList = @(
-    [PSCustomObject]@{ Name = "Google Chrome (Trình duyệt web)"; Id = "Google.Chrome"; Type = "Winget"; Checked = $true },
-    [PSCustomObject]@{ Name = "UniKey (Bộ gõ tiếng Việt)"; Id = "UniKey.UniKey"; Type = "Winget"; Checked = $true },
-    [PSCustomObject]@{ Name = "7-Zip (Phần mềm giải nén)"; Id = "7zip.7zip"; Type = "Winget"; Checked = $false },
-    [PSCustomObject]@{ Name = "VLC Media Player (Xem phim/nghe nhạc)"; Id = "VideoLAN.VLC"; Type = "Winget"; Checked = $false },
-    [PSCustomObject]@{ Name = "Zalo PC (Ứng dụng nhắn tin)"; Id = "Zalo.Zalo"; Type = "Winget"; Checked = $true },
-    [PSCustomObject]@{ Name = "Hệ thống Font chữ tiêu chuẩn Hachihi"; Id = "HachihiFonts"; Type = "Font"; Checked = $true }
-)
+$global:hachihiDir = "C:\HachihiSoftware"
+if (-not (Test-Path $global:hachihiDir)) { New-Item -ItemType Directory -Path $global:hachihiDir | Out-Null }
+$global:logPath = "$global:hachihiDir\install.log"
+$global:jsonPath = "$global:hachihiDir\install.json"
+$global:configUrl = "https://raw.githubusercontent.com/haihoanggmail/caidatcoban/main/apps.json"
+$global:webhookUrl = "YOUR_GOOGLE_APPS_SCRIPT_WEB_URL_HERE"
 
-# ==========================================
-# TẠO GIAO DIỆN HIỆN ĐẠI (MODERN UI)
-# ==========================================
+function Write-HachihiLog {
+    param([string]$message, [string]$type = "INFO")
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logLine = "[$timestamp] [$type] $message"
+    Out-File -FilePath $global:logPath -InputObject $logLine -Append -Encoding utf8
+    if ($global:txtLogControl) {
+        $global:txtLogControl.AppendText("$logLine`r`n")
+        $global:txtLogControl.SelectionStart = $global:txtLogControl.Text.Length
+        $global:txtLogControl.ScrollToCaret()
+    }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Test-HachihiInternet {
+    try {
+        $res = Invoke-WebRequest -Uri "https://www.msftconnecttest.com/connecttest.txt" -TimeoutSec 4 -UseBasicParsing -ErrorAction Stop
+        return ($res.StatusCode -eq 200)
+    } catch { return $false }
+}
+
+function Test-WindowsPendingReboot {
+    $cbs = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending" -ErrorAction SilentlyContinue
+    $wu = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired" -ErrorAction SilentlyContinue
+    return ($null -ne $cbs -or $null -ne $wu)
+}
+
+function Get-HachihiSystemMetrics {
+    $cs = Get-CimInstance Win32_ComputerSystem
+    $proc = Get-CimInstance Win32_Processor
+    $os = Get-CimInstance Win32_OperatingSystem
+    $bios = Get-CimInstance Win32_BIOS
+    $driveC = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+    $ip = (Find-NetRoute -RemoteIPAddress 8.8.8.8 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty IPAddress) -join ", "
+
+    return @{
+        ComputerName   = $env:COMPUTERNAME
+        Model          = $cs.Model.Trim()
+        Serial         = $bios.SerialNumber.Trim()
+        CPU            = $proc.Name.Trim()
+        RAM_GB         = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+        FreeDiskC_GB   = [math]::Round($driveC.FreeSpace / 1GB, 1)
+        OSVersion      = $os.Caption.Trim()
+        IPAddress      = $ip
+        PendingReboot  = (Test-WindowsPendingReboot)
+    }
+}
+
+function Test-WingetAppInstalled {
+    param([string]$appId)
+    $output = winget list --exact --id $appId --accept-source-agreements 2>$null
+    return ($output -match [regex]::Escape($appId))
+}
+
+# GIAO DIỆN WINFORMS
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Hachihi Tech - Trình Cài Đặt Tự Động Máy Mới"
-$form.Size = New-Object System.Drawing.Size(480, 470)
+$form.Text = "Hachihi Deployment Tool v3.0 Master"
+$form.Size = New-Object System.Drawing.Size(600, 680)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 $form.BackColor = [System.Drawing.Color]::FromArgb(245, 246, 248)
 
-# Panel tiêu đề trên cùng
-$panelTop = New-Object System.Windows.Forms.Panel
-$panelTop.Size = New-Object System.Drawing.Size(480, 60)
-$panelTop.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
+$panelHeader = New-Object System.Windows.Forms.Panel
+$panelHeader.Size = New-Object System.Drawing.Size(600, 60)
+$panelHeader.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 
-$label = New-Object System.Windows.Forms.Label
-$label.Location = New-Object System.Drawing.Point(20, 15)
-$label.Size = New-Object System.Drawing.Size(430, 30)
-$label.Text = "Vui lòng chọn các thành phần cần cài đặt:"
-$label.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
-$label.ForeColor = [System.Drawing.Color]::White
-$label.BackColor = [System.Drawing.Color]::Transparent
-$panelTop.Controls.Add($label)
-$form.Controls.Add($panelTop)
+$lblTitle = New-Object System.Windows.Forms.Label
+$lblTitle.Location = New-Object System.Drawing.Point(20, 15)
+$lblTitle.Size = New-Object System.Drawing.Size(550, 30)
+$lblTitle.Text = "HACHIHI TECH - TỰ ĐỘNG HÓA TRIỂN KHAI MÁY MỚI"
+$lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$lblTitle.ForeColor = [System.Drawing.Color]::White
+$panelHeader.Controls.Add($lblTitle)
+$form.Controls.Add($panelHeader)
 
-# Danh sách CheckedListBox hiện đại hơn
+$lblPC = New-Object System.Windows.Forms.Label
+$lblPC.Location = New-Object System.Drawing.Point(20, 75)
+$lblPC.Text = "Tên máy tính:"
+$lblPC.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$form.Controls.Add($lblPC)
+
+$txtPCName = New-Object System.Windows.Forms.TextBox
+$txtPCName.Location = New-Object System.Drawing.Point(20, 95)
+$txtPCName.Size = New-Object System.Drawing.Size(250, 25)
+$txtPCName.Text = $env:COMPUTERNAME
+$form.Controls.Add($txtPCName)
+
+$lblProfile = New-Object System.Windows.Forms.Label
+$lblProfile.Location = New-Object System.Drawing.Point(300, 75)
+$lblProfile.Text = "Profile Phòng ban:"
+$lblProfile.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$form.Controls.Add($lblProfile)
+
+$cmbProfile = New-Object System.Windows.Forms.ComboBox
+$cmbProfile.Location = New-Object System.Drawing.Point(300, 95)
+$cmbProfile.Size = New-Object System.Drawing.Size(260, 25)
+$cmbProfile.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+$form.Controls.Add($cmbProfile)
+
 $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
-$checkedListBox.Location = New-Object System.Drawing.Point(20, 80)
-$checkedListBox.Size = New-Object System.Drawing.Size(422, 235)
-$checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-$checkedListBox.BackColor = [System.Drawing.Color]::White
-$checkedListBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
-
-foreach ($app in $appList) {
-    $index = $checkedListBox.Items.Add($app.Name)
-    $checkedListBox.SetItemChecked($index, $app.Checked)
-}
+$checkedListBox.Location = New-Object System.Drawing.Point(20, 135)
+$checkedListBox.Size = New-Object System.Drawing.Size(540, 180)
+$checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($checkedListBox)
 
-# Nhãn đếm ngược
-$lblTimer = New-Object System.Windows.Forms.Label
-$lblTimer.Location = New-Object System.Drawing.Point(20, 325)
-$lblTimer.Size = New-Object System.Drawing.Size(422, 25)
-$lblTimer.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
-$lblTimer.ForeColor = [System.Drawing.Color]::DimGray
-$form.Controls.Add($lblTimer)
+$chkRestore = New-Object System.Windows.Forms.CheckBox
+$chkRestore.Location = New-Object System.Drawing.Point(20, 325)
+$chkRestore.Size = New-Object System.Drawing.Size(250, 24)
+$chkRestore.Text = "Tạo Restore Point hệ thống"
+$chkRestore.Checked = $true
+$form.Controls.Add($chkRestore)
 
-# Nút bấm bắt đầu cài đặt (Flat Design)
+$chkRestart = New-Object System.Windows.Forms.CheckBox
+$chkRestart.Location = New-Object System.Drawing.Point(300, 325)
+$chkRestart.Size = New-Object System.Drawing.Size(250, 24)
+$chkRestart.Text = "Tự khởi động lại sau khi xong"
+$form.Controls.Add($chkRestart)
+
 $btnInstall = New-Object System.Windows.Forms.Button
-$btnInstall.Location = New-Object System.Drawing.Point(140, 365)
-$btnInstall.Size = New-Object System.Drawing.Size(200, 42)
-$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
+$btnInstall.Location = New-Object System.Drawing.Point(180, 360)
+$btnInstall.Size = New-Object System.Drawing.Size(220, 40)
+$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT v3.0"
 $btnInstall.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
 $btnInstall.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $btnInstall.FlatAppearance.BorderSize = 0
-
-$selectedApps = @()
-$processSelection = {
-    $script:selectedApps = @()
-    for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
-        if ($checkedListBox.GetItemChecked($i)) {
-            $script:selectedApps += $appList[$i]
-        }
-    }
-    $form.Close()
-}
-
-$btnInstall.Add_Click($processSelection)
 $form.Controls.Add($btnInstall)
 
-# Bộ đếm ngược 30 giây
-$script:countdown = 30
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 1000
-$timer.Add_Tick({
-    $script:countdown--
-    $lblTimer.Text = "Tự động chạy sau $script:countdown giây nếu không có tương tác..."
-    if ($script:countdown -le 0) {
-        $timer.Stop()
-        & $processSelection
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Location = New-Object System.Drawing.Point(20, 415)
+$progressBar.Size = New-Object System.Drawing.Size(540, 20)
+$progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
+$form.Controls.Add($progressBar)
+
+$txtLog = New-Object System.Windows.Forms.TextBox
+$txtLog.Location = New-Object System.Drawing.Point(20, 445)
+$txtLog.Size = New-Object System.Drawing.Size(540, 180)
+$txtLog.Multiline = $true
+$txtLog.ReadOnly = $true
+$txtLog.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+$txtLog.BackColor = [System.Drawing.Color]::Black
+$txtLog.ForeColor = [System.Drawing.Color]::LightGreen
+$txtLog.Font = New-Object System.Drawing.Font("Consolas", 8.5)
+$form.Controls.Add($txtLog)
+$global:txtLogControl = $txtLog
+
+function RefreshAppChecklist {
+    $checkedListBox.Items.Clear()
+    $selectedProfile = $cmbProfile.SelectedItem
+    foreach ($app in $global:config.Apps) {
+        $isDefault = $app.Profiles -contains $selectedProfile
+        $idx = $checkedListBox.Items.Add($app.Name)
+        $checkedListBox.SetItemChecked($idx, $isDefault)
+    }
+}
+
+$form.Add_Load({
+    if (-not (Test-HachihiInternet)) {
+        [System.Windows.Forms.MessageBox]::Show("Không thể kết nối Internet!", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        $form.Close()
+        return
+    }
+    try {
+        $jsonRaw = Invoke-WebRequest -Uri $global:configUrl -TimeoutSec 10 -UseBasicParsing
+        $global:config = ConvertFrom-Json $jsonRaw.Content
+        foreach ($profile in $global:config.Profiles) {
+            [void]$cmbProfile.Items.Add($profile)
+        }
+        $cmbProfile.SelectedIndex = 0
+        RefreshAppChecklist
+        Write-HachihiLog "Tải thành công cấu hình v$($global:config.Version)" "SUCCESS"
+    } catch {
+        Write-HachihiLog "Không thể tải file JSON cấu hình." "ERROR"
     }
 })
-$timer.Start()
 
-# Chỉ dừng đếm ngược khi người dùng CLICK chuột thực sự vào khung
-$checkedListBox.Add_MouseDown({
-    if ($script:countdown -gt 0 -and $timer.Enabled) {
-        $timer.Stop()
-        $lblTimer.Text = "Đã chọn thủ công (Đã tắt đếm ngược tự động)."
-        $lblTimer.ForeColor = [System.Drawing.Color]::DarkGreen
+$cmbProfile.Add_SelectedIndexChanged({ RefreshAppChecklist })
+
+$btnInstall.Add_Click({
+    $btnInstall.Enabled = $false
+    $txtPCName.Enabled = $false
+    $cmbProfile.Enabled = $false
+    $checkedListBox.Enabled = $false
+    $chkRestore.Enabled = $false
+    $chkRestart.Enabled = $false
+
+    $startTime = Get-Date
+    Write-HachihiLog "=== BẮT ĐẦU TRIỂN KHAI HỆ THỐNG ===" "START"
+
+    $sysInfo = Get-HachihiSystemMetrics
+    if ($txtPCName.Text.Trim() -and $txtPCName.Text.Trim() -ne $env:COMPUTERNAME) {
+        Rename-Computer -NewName $txtPCName.Text.Trim() -Force -ErrorAction SilentlyContinue
+    }
+
+    if ($chkRestore.Checked) {
+        try {
+            Enable-ComputerRestore -Drive "$env:SystemDrive" -ErrorAction SilentlyContinue
+            Checkpoint-Computer -Description "Hachihi_v3_Setup" -RestorePointType "MODIFY_SETTINGS" -ErrorAction SilentlyContinue
+        } catch {}
+    }
+
+    winget source update | Out-Null
+
+    $selectedIndices = $checkedListBox.CheckedIndices
+    $totalSteps = $selectedIndices.Count
+    $currentStep = 0
+    $installedSummary = @()
+
+    foreach ($idx in $selectedIndices) {
+        $currentStep++
+        $app = $global:config.Apps[$idx]
+        $progressBar.Value = [math]::Round(($currentStep / $totalSteps) * 100)
+        
+        if ($app.Type -eq "Winget") {
+            Write-HachihiLog "[$currentStep/$totalSteps] Kiểm tra: $($app.Name)..." "INSTALL"
+            if (Test-WingetAppInstalled -appId $app.Id) {
+                Write-HachihiLog "-> SKIP: $($app.Name) đã có sẵn." "SKIP"
+                $installedSummary += "$($app.Name): Đã có sẵn"
+                continue
+            }
+            $p = Start-Process -FilePath "winget" -ArgumentList "install --id $($app.Id) -e --silent --accept-package-agreements --accept-source-agreements" -Wait -PassThru -NoNewWindow
+            if ($p.ExitCode -eq 0) {
+                Write-HachihiLog "-> SUCCESS: Cài xong $($app.Name)" "SUCCESS"
+                $installedSummary += "$($app.Name): Thành công"
+            } else {
+                Write-HachihiLog "-> ERROR: Lỗi cài $($app.Name)" "ERROR"
+                $installedSummary += "$($app.Name): Thất bại"
+            }
+        }
+
+        if ($app.Type -eq "Font") {
+            Write-HachihiLog "[$currentStep/$totalSteps] Đang cài bộ Font chữ..." "FONT"
+            $tempDir = "$env:TEMP\HachihiFonts"
+            if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+            New-Item -ItemType Directory -Path $tempDir | Out-Null
+            $zipPath = "$tempDir\fonts.zip"
+            $extractPath = "$tempDir\extracted"
+
+            try {
+                Invoke-WebRequest -Uri $global:config.FontUrl -OutFile $zipPath -TimeoutSec 30 -ErrorAction Stop
+                Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+                $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
+                $winFontDir = "$env:SystemRoot\Fonts"
+                $fCount = 0
+
+                foreach ($font in $fontFiles) {
+                    $targetPath = Join-Path $winFontDir $font.Name
+                    if (-not (Test-Path $targetPath)) {
+                        Copy-Item $font.FullName -Destination $winFontDir -Force
+                        $regName = "$($font.BaseName) (TrueType)"
+                        New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $font.Name -PropertyType String -Force | Out-Null
+                        $fCount++
+                    }
+                }
+                Write-HachihiLog "-> SUCCESS: Đã cài $fCount Font mới!" "SUCCESS"
+                $installedSummary += "Hệ thống Font: $fCount font mới"
+            } catch {
+                Write-HachihiLog "-> ERROR: Lỗi cài Font chữ." "ERROR"
+            }
+            if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+        }
+    }
+
+    $endTime = Get-Date
+    $timeSpan = $endTime - $startTime
+    $durationStr = "{0:D2}m:{1:D2}s" -f $timeSpan.Minutes, $timeSpan.Seconds
+    Write-HachihiLog "=== HOÀN TẤT TRONG $durationStr ===" "FINISH"
+
+    if ($chkRestart.Checked) {
+        Start-Sleep -Seconds 10
+        Restart-Computer -Force
+    } else {
+        [System.Windows.Forms.MessageBox]::Show("Hoàn tất thiết lập trong $durationStr!", "Hachihi Tool", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        Start-Process "diskmgmt.msc"
     }
 })
 
 [void]$form.ShowDialog()
-
-if ($selectedApps.Count -eq 0) {
-    Write-Host "[-] Bạn đã hủy quá trình cài đặt." -ForegroundColor Yellow
-    exit
-}
-
-Clear-Host
-
-# ==========================================
-# HIỂN THỊ LOGO HACHIHI TECH
-# ==========================================
-$host.UI.RawUI.WindowTitle = "Hachihi Tech - Đang tối ưu hệ thống..."
-Write-Host "=====================================================================" -ForegroundColor Cyan
-Write-Host "                             ▄███▄                                   " -ForegroundColor Cyan
-Write-Host "                             ▀███▀                                   " -ForegroundColor Cyan
-Write-Host "                                                                     "
-Write-Host "                             ▄███▄                                   " -ForegroundColor Cyan
-Write-Host "              ▄███▄          █████                                   " -ForegroundColor Blue
-Write-Host "              █████          █████                                   " -ForegroundColor Blue
-Write-Host "              █████          █████           ▄███▄                   " -ForegroundColor Blue
-Write-Host "              █████          █████           █████                   " -ForegroundColor Blue
-Write-Host "              █████          █████           █████                   " -ForegroundColor Blue
-Write-Host "              ▀███▀          █████           ▀███▀                   " -ForegroundColor Blue
-Write-Host "                             █████                                   " -ForegroundColor Cyan
-Write-Host "                             ▀███▀                                   " -ForegroundColor Cyan
-Write-Host "                                                                     "
-Write-Host "             HỆ THỐNG CÀI ĐẶT TỰ ĐỘNG MÁY MỚI (ONE-CLICK SETUP)        " -ForegroundColor White -BackgroundColor DarkBlue
-Write-Host "             By phòng kỹ thuật hachihi - Phiên bản chuyên nghiệp      " -ForegroundColor Yellow 
-Write-Host "=====================================================================" -ForegroundColor Cyan
-Write-Host ""
-
-# ==========================================
-# KHỞI TẠO THƯ MỤC CHUẨN CỦA HACHIHI SOFTWARE
-# ==========================================
-$hachihiDir = "C:\HachihiSoftware"
-if (-not (Test-Path $hachihiDir)) {
-    New-Item -ItemType Directory -Path $hachihiDir | Out-Null
-}
-
-# ==========================================
-# THAO TÁC CƠ BẢN: CÀI ĐẶT MÚI GIỜ & ĐỒNG BỘ THỜI GIAN
-# ==========================================
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-Write-Host " [+] Đang thiết lập múi giờ (UTC+07:00) và đồng bộ thời gian..." -ForegroundColor White
-try {
-    Set-TimeZone -Id "SE Asia Standard Time" | Out-Null
-    Set-Service W32Time -StartupType Automatic | Out-Null
-    Start-Service W32Time -ErrorAction SilentlyContinue | Out-Null
-    w32tm /resync /nowait | Out-Null
-    Write-Host "     [OK] Đã cấu hình múi giờ Việt Nam và đồng bộ thành công!" -ForegroundColor Green
-} catch {
-    Write-Host "     [!] Không thể thay đổi múi giờ tự động." -ForegroundColor Yellow
-}
-
-$chromeStatus = "Bỏ qua"
-$unikeyStatus = "Bỏ qua"
-$zaloStatus = "Bỏ qua"
-$chromePath = ""
-$unikeyPath = ""
-$zaloPath = ""
-$extraAppsStatus = @()
-$fontCount = 0
-$fontInstalledCount = 0
-
-# ==========================================
-# THỰC THI CÀI ĐẶT DỰA TRÊN LỰA CHỌN
-# ==========================================
-foreach ($item in $selectedApps) {
-    if ($item.Type -eq "Winget") {
-        $host.UI.RawUI.WindowTitle = "Đang cài đặt: $($item.Name)"
-        Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang kiểm tra và cài đặt: $($item.Name)..." -ForegroundColor White
-        
-        winget install --id $item.Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
-        
-        if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
-            Write-Host "     [OK] Đã sẵn sàng trên hệ thống." -ForegroundColor Green
-            
-            if ($item.Id -eq "Google.Chrome") {
-                $chromeStatus = "Thành công"
-                $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-            }
-            if ($item.Id -eq "UniKey.UniKey") {
-                $unikeyStatus = "Thành công"
-            }
-            if ($item.Id -eq "Zalo.Zalo") {
-                $zaloStatus = "Thành công"
-            }
-            $extraAppsStatus += "$($item.Name): Thành công"
-        } else {
-            Write-Host "     [!] Phần mềm đã có sẵn trên hệ thống." -ForegroundColor Yellow
-            if ($item.Id -eq "Google.Chrome") { 
-                $chromeStatus = "Đã có sẵn"
-                $chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-            }
-            if ($item.Id -eq "UniKey.UniKey") { 
-                $unikeyStatus = "Đã có sẵn"
-            }
-            if ($item.Id -eq "Zalo.Zalo") { 
-                $zaloStatus = "Đã có sẵn"
-            }
-            $extraAppsStatus += "$($item.Name): Đã có sẵn"
-        }
-    }
-    
-    if ($item.Type -eq "Font") {
-        $host.UI.RawUI.WindowTitle = "Đang cài đặt bộ Font chữ hệ thống..."
-        Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang tải và cài đặt nhanh bộ Font hệ thống (Tốc độ cao)..." -ForegroundColor White
-        
-        $tempDir = "$env:TEMP\HachihiFonts"
-        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-        New-Item -ItemType Directory -Path $tempDir | Out-Null
-        
-        $fontZipUrl = "https://drive.google.com/uc?export=download&id=1wGyWMJRc18poAYfaSfN2EoK2M3-iObQO"
-        $zipPath = "$tempDir\fonts.zip"
-        $extractPath = "$tempDir\extracted"
-        
-        try {
-            Invoke-WebRequest -Uri $fontZipUrl -OutFile $zipPath
-            Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-            
-            $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
-            $fontCount = $fontFiles.Count
-            $winFontDir = "$env:SystemRoot\Fonts"
-            
-            foreach ($font in $fontFiles) {
-                $targetPath = Join-Path $winFontDir $font.Name
-                if (-not (Test-Path $targetPath)) {
-                    Copy-Item $font.FullName -Destination $winFontDir -Force
-                    
-                    $fontName = [System.Drawing.FontFamily]::FromStream((gi $font.FullName)).Name
-                    if ($fontName) {
-                        $regName = "$fontName (TrueType)"
-                        New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $font.Name -PropertyType String -Force | Out-Null
-                    }
-                    
-                    $script:fontInstalledCount++
-                }
-            }
-            Write-Host "     [OK] Tổng số font quét thấy: $fontCount | Đã cài mới bổ sung: $script:fontInstalledCount font." -ForegroundColor Green
-        } catch {
-            Write-Host "     [!] Không thể tải hoặc cài đặt font chữ." -ForegroundColor Yellow
-        }
-        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-    }
-}
-
-# ==========================================
-# THIẾT LẬP ĐƯỜNG DẪN CHUẨN & TẠO SHORTCUT
-# ==========================================
-$DesktopPath = [Environment]::GetFolderPath("Desktop")
-$WScriptShell = New-Object -ComObject WScript.Shell
-
-# 1. Đường dẫn UniKey cố định (Hỗ trợ copy thẳng vào thư mục chuẩn nếu muốn)
-$unikeyPath = "$hachihiDir\UniKeyNT.exe"
-# Nếu file chưa có trong thư mục chuẩn, quét nhanh tìm nó ở thư mục cài đặt của Winget
-if (-not (Test-Path $unikeyPath)) {
-    $foundUniKey = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)", "C:\ProgramData" -Recurse -Filter "UniKeyNT.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($foundUniKey) { $unikeyPath = $foundUniKey.FullName }
-}
-
-if (Test-Path $unikeyPath) {
-    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\UniKey.lnk")
-    $Shortcut.TargetPath = $unikeyPath
-    $Shortcut.Save()
-}
-
-# 2. Đường dẫn Zalo PC chuẩn theo thư mục User thực tế
-$zaloPath = "$env:SystemDrive\Users\$env:USERNAME\AppData\Local\Programs\Zalo\Zalo.exe"
-if (-not (Test-Path $zaloPath)) {
-    # Dự phòng tìm theo biến môi trườngLocalAppData
-    $zaloPath = "$env:LocalAppData\Programs\Zalo\Zalo.exe"
-}
-
-if (Test-Path $zaloPath) {
-    $Shortcut = $WScriptShell.CreateShortcut("$DesktopPath\Zalo PC.lnk")
-    $Shortcut.TargetPath = $zaloPath
-    $Shortcut.Save()
-}
-
-# ==========================================
-# BÁO CÁO TỔNG KẾT VÀ MỞ DISK MANAGEMENT
-# ==========================================
-$host.UI.RawUI.WindowTitle = "Hoàn tất quá trình cài đặt!"
-Write-Host ""
-Write-Host "=====================================================================" -ForegroundColor Green
-Write-Host "                  BÁO CÁO KẾT QUẢ CÀI ĐẶT HỆ THỐNG                    " -ForegroundColor Green
-Write-Host "=====================================================================" -ForegroundColor Green
-Write-Host "  [ + ] Múi giờ hệ thống       : UTC+07:00 (Đã đồng bộ)" -ForegroundColor Cyan
-Write-Host "  [ + ] Google Chrome          : $chromeStatus" -ForegroundColor Cyan
-if ($chromePath) {
-    Write-Host "        Path: $chromePath" -ForegroundColor DarkGray
-}
-
-Write-Host "  [ + ] UniKey                 : $unikeyStatus" -ForegroundColor Cyan
-if (Test-Path $unikeyPath) {
-    Write-Host "        Path: $unikeyPath" -ForegroundColor DarkGray
-    Write-Host "        (Đã tạo biểu tượng Shortcut ngoài màn hình Desktop)" -ForegroundColor DarkGray
-} else {
-    Write-Host "        Path: Không tìm thấy file thực thi" -ForegroundColor Yellow
-}
-
-Write-Host "  [ + ] Zalo PC                : $zaloStatus" -ForegroundColor Cyan
-if (Test-Path $zaloPath) {
-    Write-Host "        Path: $zaloPath" -ForegroundColor DarkGray
-    Write-Host "        (Đã tạo biểu tượng Shortcut ngoài màn hình Desktop)" -ForegroundColor DarkGray
-} else {
-    Write-Host "        Path: Không tìm thấy file thực thi" -ForegroundColor Yellow
-}
-
-foreach ($st in $extraAppsStatus) {
-    if ($st -notmatch "UniKey" -and $st -notmatch "Google Chrome" -and $st -notmatch "Zalo") {
-        Write-Host "  [ + ] $st" -ForegroundColor Cyan
-    }
-}
-
-if ($fontCount -gt 0) {
-    Write-Host "  [ + ] Font chữ (Đã cài mới)  : $fontInstalledCount / $fontCount font" -ForegroundColor Cyan
-    Write-Host "        Path: C:\Windows\Fonts" -ForegroundColor DarkGray
-}
-Write-Host "---------------------------------------------------------------------" -ForegroundColor Green
-Write-Host "  [+] Thiết lập máy mới hoàn tất xuất sắc!" -ForegroundColor White
-Write-Host "  [+] Đang mở Disk Management để cấu hình ổ đĩa..." -ForegroundColor Yellow
-Write-Host "=====================================================================" -ForegroundColor Green
-
-Start-Process "diskmgmt.msc"
