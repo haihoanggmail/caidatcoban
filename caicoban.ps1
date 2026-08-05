@@ -30,12 +30,6 @@ function Write-HachihiLog {
     [System.Windows.Forms.Application]::DoEvents()
 }
 
-function Test-HachihiInternet {
-    try {
-        $res = Invoke-WebRequest -Uri "https://www.msftconnecttest.com/connecttest.txt" -TimeoutSec 4 -UseBasicParsing -ErrorAction Stop
-        return ($res.StatusCode -eq 200)
-    } catch { return $false }
-}
 
 function Test-WindowsPendingReboot {
     $cbs = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending" -ErrorAction SilentlyContinue
@@ -175,11 +169,7 @@ function RefreshAppChecklist {
 }
 
 $form.Add_Load({
-    if (-not (Test-HachihiInternet)) {
-        [System.Windows.Forms.MessageBox]::Show("Không thể kết nối Internet!", "Lỗi", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-        $form.Close()
-        return
-    }
+
     try {
         $jsonRaw = Invoke-WebRequest -Uri $global:configUrl -TimeoutSec 10 -UseBasicParsing
         $global:config = ConvertFrom-Json $jsonRaw.Content
