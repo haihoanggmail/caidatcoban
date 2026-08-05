@@ -1,0 +1,68 @@
+{
+  "Version": "3.0",
+  "FontUrl": "https://raw.githubusercontent.com/hachihi/hachihi-setup/main/fonts.zip",
+  "FontHashSHA256": "3A8B7C9D2E1F4A5B6C7D8E9F0A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B",
+  "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"],
+  "Apps": [
+    {
+      "Name": "Google Chrome",
+      "Id": "Google.Chrome",
+      "Type": "Winget",
+      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+    },
+    {
+      "Name": "UniKey Tiếng Việt",
+      "Id": "UniKey.UniKey",
+      "Type": "Winget",
+      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+    },
+    {
+      "Name": "Zalo PC",
+      "Id": "Zalo.Zalo",
+      "Type": "Winget",
+      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+    },
+    {
+      "Name": "7-Zip Compressor",
+      "Id": "7zip.7zip",
+      "Type": "Winget",
+      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+    },
+    {
+      "Name": "Notepad++ Text Editor",
+      "Id": "Notepad++.Notepad++",
+      "Type": "Winget",
+      "Profiles": ["Kỹ thuật", "Kế toán"]
+    },
+    {
+      "Name": "Adobe Acrobat Reader",
+      "Id": "Adobe.Acrobat.Reader.64-bit",
+      "Type": "Winget",
+      "Profiles": ["Văn phòng", "Kế toán"]
+    },
+    {
+      "Name": "AnyDesk Remote Support",
+      "Id": "AnyDesk.AnyDesk",
+      "Type": "Winget",
+      "Profiles": ["Kỹ thuật", "Bảo hành"]
+    },
+    {
+      "Name": "Visual C++ Redistributable (2015-2022)",
+      "Id": "Microsoft.VCRedist.2015+.x64",
+      "Type": "Winget",
+      "Profiles": ["Kỹ thuật", "Bảo hành"]
+    },
+    {
+      "Name": ".NET Desktop Runtime 8.0",
+      "Id": "Microsoft.DotNet.DesktopRuntime.8",
+      "Type": "Winget",
+      "Profiles": ["Kỹ thuật"]
+    },
+    {
+      "Name": "Bộ Font Chữ Tiêu Chuẩn Hachihi",
+      "Id": "HachihiFonts",
+      "Type": "Font",
+      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+    }
+  ]
+}
