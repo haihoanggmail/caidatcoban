@@ -1,371 +1,403 @@
-# ==========================================
-# 0. YÊU CẦU CHẠY QUYỀN ADMINISTRATOR
-# ==========================================
+# =====================================================================
+# HACHIHI DEPLOYMENT TOOL v3.0 MASTER EDITION (OPTIMIZED & FIXED)
+# Enterprise-Grade One-Click Automated Setup System
+# =====================================================================
+
+# 1. KIỂM TRA QUYỀN ADMINISTRATOR
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
-
-# ==========================================
-# 1 & 2. KIỂM TRA INTERNET & WINGET
-# ==========================================
-if (!(Test-Connection 8.8.8.8 -Count 1 -Quiet)) {
-    [System.Windows.Forms.MessageBox]::Show("Không có kết nối Internet. Vui lòng kiểm tra lại mạng!", "Lỗi Kết Nối", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-    exit
-}
-
-if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
-    [System.Windows.Forms.MessageBox]::Show("Máy tính chưa có Winget (App Installer). Vui lòng cập nhật Windows Store.", "Thiếu Winget", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
     exit
 }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# ==========================================
-# KHỞI TẠO THƯ MỤC & LOG HACHIHI
-# ==========================================
-$hachihiDir = "C:\HachihiSoftware"
-if (-not (Test-Path $hachihiDir)) { New-Item -ItemType Directory -Path $hachihiDir | Out-Null }
-$logFile = "$hachihiDir\install.log"
-"--- BẮT ĐẦU CÀI ĐẶT: $(Get-Date) ---" | Out-File -FilePath $logFile -Encoding utf8
+# CẤU HÌNH ĐƯỜNG DẪN DỮ LIỆU
+$global:hachihiDir = "C:\HachihiSoftware"
+if (-not (Test-Path $global:hachihiDir)) { New-Item -ItemType Directory -Path $global:hachihiDir | Out-Null }
+$global:logPath = "$global:hachihiDir\install.log"
+$global:jsonPath = "$global:hachihiDir\install.json"
+$global:configUrl = "https://raw.githubusercontent.com/hachihi/hachihi-setup/main/apps.json" # Link config JSON của bạn
+$global:webhookUrl = "YOUR_GOOGLE_APPS_SCRIPT_WEB_URL_HERE" # Link Apps Script của bạn
+$global:config = $null
 
-# ==========================================
-# DANH SÁCH APP & PROFILE PHÒNG BAN
-# ==========================================
-$appList = @(
-    [PSCustomObject]@{ Name = "Google Chrome (Trình duyệt web)"; Id = "Google.Chrome"; Type = "Winget"; Profile = @("Văn phòng","Kỹ thuật","Bảo hành","Kế toán") },
-    [PSCustomObject]@{ Name = "UniKey (Bộ gõ tiếng Việt)"; Id = "UniKey.UniKey"; Type = "Winget"; Profile = @("Văn phòng","Kỹ thuật","Bảo hành","Kế toán") },
-    [PSCustomObject]@{ Name = "Zalo PC (Ứng dụng nhắn tin)"; Id = "Zalo.Zalo"; Type = "Winget"; Profile = @("Văn phòng","Kỹ thuật","Bảo hành","Kế toán") },
-    [PSCustomObject]@{ Name = "7-Zip (Phần mềm giải nén)"; Id = "7zip.7zip"; Type = "Winget"; Profile = @("Văn phòng","Kỹ thuật","Bảo hành","Kế toán") },
-    [PSCustomObject]@{ Name = "Notepad++ (Soạn thảo code/text)"; Id = "Notepad++.Notepad++"; Type = "Winget"; Profile = @("Kỹ thuật","Kế toán") },
-    [PSCustomObject]@{ Name = "Adobe Acrobat Reader"; Id = "Adobe.Acrobat.Reader.64-bit"; Type = "Winget"; Profile = @("Văn phòng","Kế toán") },
-    [PSCustomObject]@{ Name = "AnyDesk (Điều khiển từ xa)"; Id = "AnyDesk.AnyDesk"; Type = "Winget"; Profile = @("Kỹ thuật","Bảo hành") },
-    [PSCustomObject]@{ Name = "Visual C++ Redistributable"; Id = "Microsoft.VCRedist.2015+.x64"; Type = "Winget"; Profile = @("Kỹ thuật","Bảo hành") },
-    [PSCustomObject]@{ Name = ".NET Desktop Runtime"; Id = "Microsoft.DotNet.DesktopRuntime.8"; Type = "Winget"; Profile = @("Kỹ thuật") },
-    [PSCustomObject]@{ Name = "Hệ thống Font chữ tiêu chuẩn Hachihi"; Id = "HachihiFonts"; Type = "Font"; Profile = @("Văn phòng","Kỹ thuật","Bảo hành","Kế toán") }
-)
+# =====================================================================
+# HÀM BỔ TRỢ HỆ THỐNG (SYSTEM UTILITY FUNCTIONS)
+# =====================================================================
 
-# ==========================================
-# TẠO GIAO DIỆN WINFORMS HIỆN ĐẠI
-# ==========================================
+function Write-HachihiLog {
+    param([string]$message, [string]$type = "INFO")
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logLine = "[$timestamp] [$type] $message"
+    Out-File -FilePath $global:logPath -InputObject $logLine -Append -Encoding utf8
+    if ($global:txtLogControl) {
+        $global:txtLogControl.AppendText("$logLine`r`n")
+        $global:txtLogControl.SelectionStart = $global:txtLogControl.Text.Length
+        $global:txtLogControl.ScrollToCaret()
+    }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Test-HachihiInternet {
+    try {
+        $res = Invoke-WebRequest -Uri "https://www.msftconnecttest.com/connecttest.txt" -TimeoutSec 4 -UseBasicParsing -ErrorAction Stop
+        return ($res.StatusCode -eq 200)
+    } catch {
+        return $false
+    }
+}
+
+function Test-WindowsPendingReboot {
+    $cbs = Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending" -ErrorAction SilentlyContinue
+    $wu = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired" -ErrorAction SilentlyContinue
+    return ($null -ne $cbs -or $null -ne $wu)
+}
+
+function Get-HachihiSystemMetrics {
+    $cs = Get-CimInstance Win32_ComputerSystem
+    $proc = Get-CimInstance Win32_Processor
+    $os = Get-CimInstance Win32_OperatingSystem
+    $bios = Get-CimInstance Win32_BIOS
+    $driveC = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+    
+    $ip = (Find-NetRoute -RemoteIPAddress 8.8.8.8 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty IPAddress) -join ", "
+
+    return @{
+        ComputerName   = $env:COMPUTERNAME
+        Model          = $cs.Model.Trim()
+        Serial         = $bios.SerialNumber.Trim()
+        CPU            = $proc.Name.Trim()
+        RAM_GB         = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+        FreeDiskC_GB   = [math]::Round($driveC.FreeSpace / 1GB, 1)
+        OSVersion      = $os.Caption.Trim()
+        IPAddress      = $ip
+        PendingReboot  = (Test-WindowsPendingReboot)
+    }
+}
+
+function Test-WingetAppInstalled {
+    param([string]$appId)
+    $output = winget list --exact --id $appId --accept-source-agreements 2>$null
+    return ($output -match [regex]::Escape($appId))
+}
+
+# ĐỊNH NGHĨA HÀM RefreshAppChecklist TRƯỚC KHI GÁN EVENT
+function RefreshAppChecklist {
+    if (-not $global:config) { return }
+    $checkedListBox.Items.Clear()
+    $selectedProfile = $cmbProfile.SelectedItem
+    foreach ($app in $global:config.Apps) {
+        $isDefault = $app.Profiles -contains $selectedProfile
+        $idx = $checkedListBox.Items.Add($app.Name)
+        $checkedListBox.SetItemChecked($idx, $isDefault)
+    }
+}
+
+# =====================================================================
+# THIẾT LẬP GIAO DIỆN WINFORMS (SINGLE-WINDOW PROGRESS UI)
+# =====================================================================
+
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Hachihi Tech - One-Click Setup v2.0"
-$form.Size = New-Object System.Drawing.Size(520, 600)
+$form.Text = "Hachihi Deployment Tool v3.0 Master"
+$form.Size = New-Object System.Drawing.Size(600, 680)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 $form.BackColor = [System.Drawing.Color]::FromArgb(245, 246, 248)
 
 # Panel Header
-$panelTop = New-Object System.Windows.Forms.Panel
-$panelTop.Size = New-Object System.Drawing.Size(520, 60)
-$panelTop.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
+$panelHeader = New-Object System.Windows.Forms.Panel
+$panelHeader.Size = New-Object System.Drawing.Size(600, 60)
+$panelHeader.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 
-$labelTitle = New-Object System.Windows.Forms.Label
-$labelTitle.Location = New-Object System.Drawing.Point(20, 15)
-$labelTitle.Size = New-Object System.Drawing.Size(480, 30)
-$labelTitle.Text = "HỆ THỐNG CÀI ĐẶT MÁY MỚI - HACHIHI TECH"
-$labelTitle.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
-$labelTitle.ForeColor = [System.Drawing.Color]::White
-$panelTop.Controls.Add($labelTitle)
-$form.Controls.Add($panelTop)
+$lblTitle = New-Object System.Windows.Forms.Label
+$lblTitle.Location = New-Object System.Drawing.Point(20, 15)
+$lblTitle.Size = New-Object System.Drawing.Size(550, 30)
+$lblTitle.Text = "HACHIHI TECH - TỰ ĐỘNG HÓA TRIỂN KHAI MÁY MỚI"
+$lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$lblTitle.ForeColor = [System.Drawing.Color]::White
+$panelHeader.Controls.Add($lblTitle)
+$form.Controls.Add($panelHeader)
 
-# Nhập Tên Máy (Computer Name)
+# Form Controls Input
 $lblPC = New-Object System.Windows.Forms.Label
 $lblPC.Location = New-Object System.Drawing.Point(20, 75)
-$lblPC.Size = New-Object System.Drawing.Size(150, 20)
-$lblPC.Text = "Đổi tên máy tính:"
+$lblPC.Text = "Tên máy tính:"
 $lblPC.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $form.Controls.Add($lblPC)
 
 $txtPCName = New-Object System.Windows.Forms.TextBox
-$txtPCName.Location = New-Object System.Drawing.Point(20, 98)
-$txtPCName.Size = New-Object System.Drawing.Size(220, 25)
-$txtPCName.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$txtPCName.Location = New-Object System.Drawing.Point(20, 95)
+$txtPCName.Size = New-Object System.Drawing.Size(250, 25)
 $txtPCName.Text = $env:COMPUTERNAME
 $form.Controls.Add($txtPCName)
 
-# Chọn Profile Phòng Ban
 $lblProfile = New-Object System.Windows.Forms.Label
-$lblProfile.Location = New-Object System.Drawing.Point(260, 75)
-$lblProfile.Size = New-Object System.Drawing.Size(150, 20)
-$lblProfile.Text = "Chọn Profile cấu hình:"
+$lblProfile.Location = New-Object System.Drawing.Point(300, 75)
+$lblProfile.Text = "Profile Phòng ban:"
 $lblProfile.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $form.Controls.Add($lblProfile)
 
 $cmbProfile = New-Object System.Windows.Forms.ComboBox
-$cmbProfile.Location = New-Object System.Drawing.Point(260, 98)
-$cmbProfile.Size = New-Object System.Drawing.Size(222, 25)
-$cmbProfile.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-@("Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán") | ForEach-Object { [void]$cmbProfile.Items.Add($_) }
-$cmbProfile.SelectedIndex = 0
+$cmbProfile.Location = New-Object System.Drawing.Point(300, 95)
+$cmbProfile.Size = New-Object System.Drawing.Size(260, 25)
+$cmbProfile.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
 $form.Controls.Add($cmbProfile)
 
-# Danh sách CheckedListBox Ứng dụng
+# Checklist phần mềm
 $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
-$checkedListBox.Location = New-Object System.Drawing.Point(20, 140)
-$checkedListBox.Size = New-Object System.Drawing.Size(462, 220)
-$checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
-$checkedListBox.BackColor = [System.Drawing.Color]::White
-
-function LoadAppsForProfile($profileName) {
-    $checkedListBox.Items.Clear()
-    foreach ($app in $appList) {
-        $isChecked = $app.Profile -contains $profileName
-        $index = $checkedListBox.Items.Add($app.Name)
-        $checkedListBox.SetItemChecked($index, $isChecked)
-    }
-}
-LoadAppsForProfile "Văn phòng"
-
-$cmbProfile.add_SelectedIndexChanged({
-    LoadAppsForProfile $cmbProfile.SelectedItem
-})
+$checkedListBox.Location = New-Object System.Drawing.Point(20, 135)
+$checkedListBox.Size = New-Object System.Drawing.Size(540, 180)
+$checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($checkedListBox)
 
-# Checkbox Tạo Restore Point & Khởi động lại
+# Options Checkbox
 $chkRestore = New-Object System.Windows.Forms.CheckBox
-$chkRestore.Location = New-Object System.Drawing.Point(20, 375)
-$chkRestore.Size = New-Object System.Drawing.Size(220, 24)
-$chkRestore.Text = "Tạo Restore Point trước khi cài"
+$chkRestore.Location = New-Object System.Drawing.Point(20, 325)
+$chkRestore.Size = New-Object System.Drawing.Size(250, 24)
+$chkRestore.Text = "Tạo Restore Point hệ thống"
 $chkRestore.Checked = $true
 $form.Controls.Add($chkRestore)
 
 $chkRestart = New-Object System.Windows.Forms.CheckBox
-$chkRestart.Location = New-Object System.Drawing.Point(260, 375)
-$chkRestart.Size = New-Object System.Drawing.Size(220, 24)
-$chkRestart.Text = "Khởi động lại sau khi xong"
-$chkRestart.Checked = $false
+$chkRestart.Location = New-Object System.Drawing.Point(300, 325)
+$chkRestart.Size = New-Object System.Drawing.Size(250, 24)
+$chkRestart.Text = "Tự khởi động lại sau khi xong"
+$chkRestart.Checked = $true # Khuyến nghị bật sẵn để nhận tên máy mới
 $form.Controls.Add($chkRestart)
 
-# Nhãn đếm ngược tự động
-$lblTimer = New-Object System.Windows.Forms.Label
-$lblTimer.Location = New-Object System.Drawing.Point(20, 410)
-$lblTimer.Size = New-Object System.Drawing.Size(462, 22)
-$lblTimer.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Italic)
-$lblTimer.ForeColor = [System.Drawing.Color]::DimGray
-$form.Controls.Add($lblTimer)
-
-# Nút Bắt đầu cài đặt
+# Nút Cài đặt
 $btnInstall = New-Object System.Windows.Forms.Button
-$btnInstall.Location = New-Object System.Drawing.Point(140, 445)
-$btnInstall.Size = New-Object System.Drawing.Size(220, 42)
-$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
+$btnInstall.Location = New-Object System.Drawing.Point(180, 360)
+$btnInstall.Size = New-Object System.Drawing.Size(220, 40)
+$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT v3.0"
 $btnInstall.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
 $btnInstall.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $btnInstall.FlatAppearance.BorderSize = 0
-
-$script:selectedApps = @()
-$script:newComputerName = ""
-$script:doRestore = $true
-$script:doRestart = $false
-
-$processSelection = {
-    $script:newComputerName = $txtPCName.Text.Trim()
-    $script:doRestore = $chkRestore.Checked
-    $script:doRestart = $chkRestart.Checked
-    $script:selectedApps = @()
-    for ($i = 0; $i -lt $checkedListBox.Items.Count; $i++) {
-        if ($checkedListBox.GetItemChecked($i)) {
-            $script:selectedApps += $appList[$i]
-        }
-    }
-    $form.Close()
-}
-
-$btnInstall.Add_Click($processSelection)
 $form.Controls.Add($btnInstall)
 
-# Bộ đếm ngược 15 giây
-$script:countdown = 15
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 1000
-$timer.Add_Tick({
-    $script:countdown--
-    $lblTimer.Text = "Tự động chạy sau $script:countdown giây nếu không thao tác..."
-    if ($script:countdown -le 0) {
-        $timer.Stop()
-        & $processSelection
+# Thanh Progress Bar & Terminal Log
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Location = New-Object System.Drawing.Point(20, 415)
+$progressBar.Size = New-Object System.Drawing.Size(540, 20)
+$progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
+$form.Controls.Add($progressBar)
+
+$txtLog = New-Object System.Windows.Forms.TextBox
+$txtLog.Location = New-Object System.Drawing.Point(20, 445)
+$txtLog.Size = New-Object System.Drawing.Size(540, 180)
+$txtLog.Multiline = $true
+$txtLog.ReadOnly = $true
+$txtLog.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+$txtLog.BackColor = [System.Drawing.Color]::Black
+$txtLog.ForeColor = [System.Drawing.Color]::LightGreen
+$txtLog.Font = New-Object System.Drawing.Font("Consolas", 8.5)
+$form.Controls.Add($txtLog)
+$global:txtLogControl = $txtLog
+
+# =====================================================================
+# EVENT HANDLING & CHƯƠNG TRÌNH CHÍNH
+# =====================================================================
+
+$form.Add_Load({
+    Write-HachihiLog "Đang kết nối kiểm tra Internet..." "INIT"
+    if (-not (Test-HachihiInternet)) {
+        [System.Windows.Forms.MessageBox]::Show("Không thể kết nối Internet. Vui lòng kiểm tra lại mạng!", "Lỗi Kết Nối", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        $form.Close()
+        return
     }
-})
-$timer.Start()
 
-$checkedListBox.Add_MouseDown({
-    if ($script:countdown -gt 0 -and $timer.Enabled) {
-        $timer.Stop()
-        $lblTimer.Text = "Đã chuyển sang chế độ tùy chọn thủ công."
-    }
-})
-
-[void]$form.ShowDialog()
-
-if ($script:selectedApps.Count -eq 0) {
-    Write-Host "[-] Đã hủy quá trình cài đặt." -ForegroundColor Yellow
-    exit
-}
-
-Clear-Host
-
-# ==========================================
-# 3. WINGET UPGRADE & TẠO RESTORE POINT
-# ==========================================
-Write-Host "=====================================================================" -ForegroundColor Cyan
-Write-Host "       HỆ THỐNG CÀI ĐẶT TỰ ĐỘNG MÁY MỚI (ONE-CLICK SETUP v2.0)       " -ForegroundColor White -BackgroundColor DarkBlue
-Write-Host "=====================================================================" -ForegroundColor Cyan
-
-if ($script:doRestore) {
-    Write-Host "[+] Đang tạo điểm khôi phục hệ thống (Restore Point)..." -ForegroundColor Yellow
+    Write-HachihiLog "Đang tải cấu hình phần mềm từ GitHub..." "INIT"
     try {
-        Enable-ComputerRestore -Drive "$env:SystemDrive" -ErrorAction SilentlyContinue
-        Checkpoint-Computer -Description "Hachihi-Setup-RestorePoint" -RestorePointType "MODIFY_SETTINGS" -ErrorAction SilentlyContinue
-        Write-Host "    [OK] Đã tạo Restore Point thành công!" -ForegroundColor Green
+        $jsonRaw = Invoke-WebRequest -Uri $global:configUrl -TimeoutSec 10 -UseBasicParsing
+        $global:config = ConvertFrom-Json $jsonRaw.Content
+        
+        foreach ($profile in $global:config.Profiles) {
+            [void]$cmbProfile.Items.Add($profile)
+        }
+        if ($cmbProfile.Items.Count -gt 0) {
+            $cmbProfile.SelectedIndex = 0
+        }
+        Write-HachihiLog "Đã tải thành công cấu hình v$($global:config.Version)" "SUCCESS"
     } catch {
-        Write-Host "    [!] Không thể tạo Restore Point (Bỏ qua bước này)." -ForegroundColor Yellow
+        Write-HachihiLog "Không thể lấy file JSON trực tuyến. Vui lòng kiểm tra cấu hình URL." "ERROR"
     }
-}
+})
 
-Write-Host "[+] Đang cập nhật nguồn Winget và nâng cấp các gói sẵn có..." -ForegroundColor Yellow
-winget source update | Out-Null
-winget upgrade --all --silent --accept-package-agreements --accept-source-agreements | Out-Null
+# Đăng ký sự kiện sau khi hàm đã sẵn sàng
+$cmbProfile.Add_SelectedIndexChanged({ RefreshAppChecklist })
 
-# ==========================================
-# ĐỔI TÊN MÁY NẾU CÓ THAY ĐỔI
-# ==========================================
-if ($script:newComputerName -and $script:newComputerName -ne $env:COMPUTERNAME) {
-    Write-Host "[+] Đang đổi tên máy thành: $script:newComputerName..." -ForegroundColor Yellow
-    Rename-Computer -NewName $script:newComputerName -Force -ErrorAction SilentlyContinue
-}
+# TIẾN HÀNH THỰC THI (MAIN PROCESS)
+$btnInstall.Add_Click({
+    # Khóa UI
+    $btnInstall.Enabled = $false
+    $txtPCName.Enabled = $false
+    $cmbProfile.Enabled = $false
+    $checkedListBox.Enabled = $false
+    $chkRestore.Enabled = $false
+    $chkRestart.Enabled = $false
 
-# ==========================================
-# THIẾT LẬP MÚI GIỜ & ĐỒNG BỘ THỜI GIAN
-# ==========================================
-Write-Host "[+] Đang đồng bộ múi giờ Việt Nam (UTC+07:00)..." -ForegroundColor Yellow
-try {
-    Set-TimeZone -Id "SE Asia Standard Time" -ErrorAction SilentlyContinue
-    Set-Service W32Time -StartupType Automatic -ErrorAction SilentlyContinue
-    Start-Service W32Time -ErrorAction SilentlyContinue
-    w32tm /resync /nowait -ErrorAction SilentlyContinue
-    Write-Host "    [OK] Đã cấu hình múi giờ thành công!" -ForegroundColor Green
-} catch {}
+    $startTime = Get-Date
+    Write-HachihiLog "=== BẮT ĐẦU TRIỂN KHAI HỆ THỐNG ===" "START"
 
-$installedAppsSummary = @()
-$fontInstalledCount = 0
-
-# ==========================================
-# THỰC THI CÀI ĐẶT ỨNG DỤNG
-# ==========================================
-foreach ($item in $script:selectedApps) {
-    if ($item.Type -eq "Winget") {
-        Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang cài đặt: $($item.Name)..." -ForegroundColor White
-        
-        winget install --id $item.Id -e --silent --accept-package-agreements --accept-source-agreements | Out-Null
-        
-        if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
-            Write-Host "     [OK] Thành công." -ForegroundColor Green
-            $installedAppsSummary += "$($item.Name): Thành công"
-            "[$((Get-Date))] Installed via Winget: $($item.Name)" | Out-File -FilePath $logFile -Append -Encoding utf8
-        } else {
-            Write-Host "     [!] Đã có sẵn hoặc không cần cập nhật." -ForegroundColor Yellow
-            $installedAppsSummary += "$($item.Name): Đã có sẵn"
-            "[$((Get-Date))] Already available: $($item.Name)" | Out-File -FilePath $logFile -Append -Encoding utf8
-        }
-    }
+    # 1. Kiểm tra dung lượng đĩa C
+    $sysInfo = Get-HachihiSystemMetrics
+    Write-HachihiLog "Cấu hình: CPU: $($sysInfo.CPU) | RAM: $($sysInfo.RAM_GB)GB | Ổ C Trống: $($sysInfo.FreeDiskC_GB)GB" "SYS"
     
-    if ($item.Type -eq "Font") {
-        Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-        Write-Host " [+] Đang tải và cài đặt bộ Font tiêu chuẩn Hachihi..." -ForegroundColor White
-        
-        $tempDir = "$env:TEMP\HachihiFonts"
-        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-        New-Item -ItemType Directory -Path $tempDir | Out-Null
-        
-        # Link Github Release hoặc Direct link lưu trữ Font của bạn
-        $fontZipUrl = "https://github.com/hachihi/hachihi-setup/raw/main/fonts.zip" 
-        $zipPath = "$tempDir\fonts.zip"
-        $extractPath = "$tempDir\extracted"
-        
+    if ($sysInfo.FreeDiskC_GB -lt 5) {
+        Write-HachihiLog "CẢNH BÁO: Dung lượng ổ C khả dụng nhỏ hơn 5GB!" "WARNING"
+    }
+
+    if ($sysInfo.PendingReboot) {
+        Write-HachihiLog "CẢNH BÁO: Windows đang trong trạng thái chờ Khởi động lại (Pending Reboot)." "WARNING"
+    }
+
+    # 2. Đổi tên máy nếu có sửa
+    if ($txtPCName.Text.Trim() -and $txtPCName.Text.Trim() -ne $env:COMPUTERNAME) {
+        Write-HachihiLog "Đang đổi tên máy thành: $($txtPCName.Text.Trim())..." "CONFIG"
+        Rename-Computer -NewName $txtPCName.Text.Trim() -Force -ErrorAction SilentlyContinue
+    }
+
+    # 3. Tạo Restore Point
+    if ($chkRestore.Checked) {
+        Write-HachihiLog "Đang tạo Restore Point hệ thống..." "SYS"
         try {
-            Invoke-WebRequest -Uri $fontZipUrl -OutFile $zipPath -ErrorAction Stop
-            Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-            
-            $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
-            $winFontDir = "$env:SystemRoot\Fonts"
-            
-            foreach ($font in $fontFiles) {
-                $targetPath = Join-Path $winFontDir $font.Name
-                if (-not (Test-Path $targetPath)) {
-                    Copy-Item $font.FullName -Destination $winFontDir -Force
-                    # Đăng ký Registry an toàn không dùng FromStream
-                    $regName = "$($font.BaseName) (TrueType)"
-                    New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $font.Name -PropertyType String -Force | Out-Null
-                    $script:fontInstalledCount++
-                }
-            }
-            Write-Host "     [OK] Đã cài bổ sung $script:fontInstalledCount font chữ mới." -ForegroundColor Green
-            $installedAppsSummary += "Hệ thống Font chữ: $script:fontInstalledCount font mới"
+            Enable-ComputerRestore -Drive "$env:SystemDrive" -ErrorAction SilentlyContinue
+            Checkpoint-Computer -Description "Hachihi_v3_Setup" -RestorePointType "MODIFY_SETTINGS" -ErrorAction SilentlyContinue
+            Write-HachihiLog "Đã tạo Restore Point thành công!" "SUCCESS"
         } catch {
-            Write-Host "     [!] Không thể tải bộ font từ kho lưu trữ. Vui lòng kiểm tra lại link." -ForegroundColor Yellow
+            Write-HachihiLog "Bỏ qua tạo Restore Point (Không hỗ trợ hoặc lỗi)." "WARNING"
         }
-        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
     }
-}
 
-# ==========================================
-# LẤY THÔNG TIN SERIAL & PHẦN CỨNG CUỐI KỲ
-# ==========================================
-$bios = Get-CimInstance Win32_BIOS
-$serialNumber = $bios.SerialNumber.Trim()
-$model = (Get-CimInstance Win32_ComputerSystem).Model.Trim()
-$osVersion = (Get-CimInstance Win32_OperatingSystem).Caption.Trim()
-$ipAddress = (Find-NetRoute -RemoteIPAddress 8.8.8.8 | Select-Object -ExpandProperty IPAddress) -join ", "
+    # 4. Winget Update Sources
+    Write-HachihiLog "Đang cập nhật danh mục nguồn Winget..." "WINGET"
+    winget source update | Out-Null
 
-# ==========================================
-# GỬI KẾT QUẢ VỀ GOOGLE SHEETS (APPS SCRIPT)
-# ==========================================
-Write-Host "------------------------------------------------------------------" -ForegroundColor Cyan
-Write-Host "[+] Đang gửi báo cáo cấu hình về hệ thống quản lý (Google Sheets)..." -ForegroundColor Yellow
-try {
-    $webhookUrl = "YOUR_GOOGLE_APPS_SCRIPT_WEB_URL_HERE" # Thay thế link Google Apps Script Web App của bạn vào đây
-    if ($webhookUrl -ne "YOUR_GOOGLE_APPS_SCRIPT_WEB_URL_HERE") {
-        $body = @{
-            ComputerName = $env:COMPUTERNAME
-            Model        = $model
-            Serial       = $serialNumber
-            IP           = $ipAddress
-            OS           = $osVersion
-            Profile      = $cmbProfile.SelectedItem
-            Apps         = ($installedAppsSummary -join ", ")
-            Date         = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-        } | ConvertTo-Json
+    # 5. Lặp cài đặt danh sách phần mềm đã chọn
+    $selectedIndices = $checkedListBox.CheckedIndices
+    $totalSteps = $selectedIndices.Count
+    if ($totalSteps -eq 0) { $totalSteps = 1 } # Tránh chia cho 0
+    $currentStep = 0
 
-        Invoke-RestMethod -Uri $webhookUrl -Method Post -Body $body -ContentType "application/json" -ErrorAction SilentlyContinue | Out-Null
-        Write-Host "    [OK] Đã đồng bộ dữ liệu lên ERP/Google Sheets thành công!" -ForegroundColor Green
+    $installedSummary = @()
+
+    foreach ($idx in $selectedIndices) {
+        $currentStep++
+        $app = $global:config.Apps[$idx]
+        $progressBar.Value = [math]::Round(($currentStep / $totalSteps) * 100)
+        
+        if ($app.Type -eq "Winget") {
+            Write-HachihiLog "[$currentStep/$totalSteps] Kiểm tra phần mềm: $($app.Name)..." "INSTALL"
+            
+            if (Test-WingetAppInstalled -appId $app.Id) {
+                Write-HachihiLog "-> SKIP: $($app.Name) đã được cài sẵn trên máy." "SKIP"
+                $installedSummary += "$($app.Name): Đã có sẵn"
+                continue
+            }
+
+            Write-HachihiLog "-> Đang tải & cài đặt $($app.Name)..." "INSTALL"
+            $p = Start-Process -FilePath "winget" -ArgumentList "install --id $($app.Id) -e --silent --accept-package-agreements --accept-source-agreements" -Wait -PassThru -NoNewWindow
+            
+            if ($p.ExitCode -eq 0) {
+                Write-HachihiLog "-> SUCCESS: Cài đặt thành công $($app.Name)!" "SUCCESS"
+                $installedSummary += "$($app.Name): Thành công"
+            } else {
+                Write-HachihiLog "-> ERROR: Không thể cài đặt $($app.Name) (ExitCode: $($p.ExitCode))" "ERROR"
+                $installedSummary += "$($app.Name): Thất bại"
+            }
+        }
+
+        if ($app.Type -eq "Font") {
+            Write-HachihiLog "[$currentStep/$totalSteps] Đang tải & cài đặt bộ Font chữ tiêu chuẩn..." "FONT"
+            $tempDir = "$env:TEMP\HachihiFonts"
+            if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+            New-Item -ItemType Directory -Path $tempDir | Out-Null
+            
+            $zipPath = "$tempDir\fonts.zip"
+            $extractPath = "$tempDir\extracted"
+
+            try {
+                Invoke-WebRequest -Uri $global:config.FontUrl -OutFile $zipPath -TimeoutSec 30 -ErrorAction Stop
+                
+                if ($global:config.FontHashSHA256) {
+                    $fileHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash
+                    if ($fileHash -ne $global:config.FontHashSHA256) {
+                        Write-HachihiLog "CẢNH BÁO: SHA256 Hash file Font không khớp! Hủy cài Font." "ERROR"
+                        continue
+                    }
+                }
+
+                Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+                $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
+                $winFontDir = "$env:SystemRoot\Fonts"
+                $fCount = 0
+
+                foreach ($font in $fontFiles) {
+                    $targetPath = Join-Path $winFontDir $font.Name
+                    if (-not (Test-Path $targetPath)) {
+                        Copy-Item $font.FullName -Destination $winFontDir -Force
+                        $regName = "$($font.BaseName) (TrueType)"
+                        New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $font.Name -PropertyType String -Force | Out-Null
+                        $fCount++
+                    }
+                }
+                Write-HachihiLog "-> SUCCESS: Đã đăng ký thành công $fCount Font chữ mới!" "SUCCESS"
+                $installedSummary += "Hệ thống Font: $fCount font mới"
+            } catch {
+                Write-HachihiLog "-> ERROR: Lỗi trong quá trình xử lý Font chữ." "ERROR"
+            }
+            if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+        }
     }
-} catch {
-    Write-Host "    [!] Không thể kết nối tới máy chủ ghi nhận báo cáo." -ForegroundColor Yellow
-}
 
-# ==========================================
-# BÁO CÁO TỔNG KẾT
-# ==========================================
-Write-Host ""
-Write-Host "=====================================================================" -ForegroundColor Green
-Write-Host "                  HOÀN TẤT THIẾT LẬP MÁY MỚI!                          " -ForegroundColor Green
-Write-Host "=====================================================================" -ForegroundColor Green
-Write-Host " [ + ] Máy tính / Model : $env:COMPUTERNAME / $model" -ForegroundColor Cyan
-Write-Host " [ + ] Serial Number    : $serialNumber" -ForegroundColor Cyan
-Write-Host " [ + ] Địa chỉ IP       : $ipAddress" -ForegroundColor Cyan
-Write-Host "---------------------------------------------------------------------" -ForegroundColor Green
+    # 6. Tổng kết thời gian & Xuất file Báo cáo
+    $endTime = Get-Date
+    $timeSpan = $endTime - $startTime
+    $durationStr = "{0:D2}m:{1:D2}s" -f $timeSpan.Minutes, $timeSpan.Seconds
 
-if ($script:doRestart) {
-    Write-Host " [+] Máy tính sẽ khởi động lại sau 10 giây..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 10
-    Restart-Computer -Force
-} else {
-    Write-Host " [+] Hoàn tất! Bạn có thể bắt đầu sử dụng máy." -ForegroundColor White
-    Start-Process "diskmgmt.msc"
-}
+    Write-HachihiLog "=== HOÀN TẤT SETUP TRONG $durationStr ===" "FINISH"
+
+    $reportObject = @{
+        ComputerName = $env:COMPUTERNAME
+        Model        = $sysInfo.Model
+        Serial       = $sysInfo.Serial
+        CPU          = $sysInfo.CPU
+        RAM_GB       = $sysInfo.RAM_GB
+        FreeDiskC_GB = $sysInfo.FreeDiskC_GB
+        OSVersion    = $sysInfo.OSVersion
+        IPAddress    = $sysInfo.IPAddress
+        Profile      = $cmbProfile.SelectedItem
+        Installed    = $installedSummary
+        Duration     = $durationStr
+        Date         = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+    }
+    $reportObject | ConvertTo-Json -Depth 3 | Out-File -FilePath $global:jsonPath -Encoding utf8
+
+    # 7. Gửi telemetry lên Google Sheets Webhook
+    if ($global:webhookUrl -and $global:webhookUrl -ne "YOUR_GOOGLE_APPS_SCRIPT_WEB_URL_HERE") {
+        Write-HachihiLog "Đang đồng bộ báo cáo về Google Sheets / ERP..." "WEBHOOK"
+        try {
+            $bodyJson = $reportObject | ConvertTo-Json -Depth 3
+            Invoke-RestMethod -Uri $global:webhookUrl -Method Post -Body $bodyJson -ContentType "application/json" -TimeoutSec 10 -ErrorAction SilentlyContinue | Out-Null
+            Write-HachihiLog "Đã gửi dữ liệu thành công!" "SUCCESS"
+        } catch {
+            Write-HachihiLog "Không thể gửi dữ liệu lên Google Sheets Webhook." "WARNING"
+        }
+    }
+
+    # 8. Xử lý Sau khi hoàn tất
+    if ($chkRestart.Checked) {
+        Write-HachihiLog "Máy tính sẽ khởi động lại sau 10 giây..." "SYS"
+        Start-Sleep -Seconds 10
+        Restart-Computer -Force
+    } else {
+        [System.Windows.Forms.MessageBox]::Show("Quá trình thiết lập hoàn tất xuất sắc trong $durationStr!", "Hachihi Deployment Tool", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        Start-Process "diskmgmt.msc"
+    }
+})
+
+# Chạy hiển thị Form
+[void]$form.ShowDialog()
