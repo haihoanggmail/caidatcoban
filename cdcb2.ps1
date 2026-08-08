@@ -204,7 +204,7 @@ $global:txtLogControl = $txtLog
 $form.Add_Load({
     Write-HachihiLog "Đang kết nối kiểm tra Internet..." "INIT"
     if (-not (Test-HachihiInternet)) {
-        [System.Windows.Forms.MessageBox]::Show("Không thể kết nối Internet. Vui lòng kiểm tra lại mạng!", "Lỗi Kết Nối", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+        [System.Windows.Forms.MessageBox]::Show("Không kết nối Internet. Vui lòng kiểm tra lại mạng!", "Lỗi Kết Nối", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
         $form.Close()
         return
     }
