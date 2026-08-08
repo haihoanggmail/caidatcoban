@@ -1,44 +1,92 @@
 {
-  "Version": "3.0",
-  "FontUrl": "https://raw.githubusercontent.com/haihoanggmail/caidatcoban/main/fonts.zip",
-  "FontHashSHA256": "",
-  "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"],
+  "Version": "3.2.0",
+
+  "Profiles": [
+    "Kỹ thuật",
+    "Kế toán",
+    "Kinh doanh",
+    "Văn phòng"
+  ],
+
   "Apps": [
     {
       "Name": "Google Chrome",
+      "Type": "Winget",
       "Id": "Google.Chrome",
-      "Type": "Winget",
-      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+      "Profiles": [
+        "Kỹ thuật",
+        "Kế toán",
+        "Kinh doanh",
+        "Văn phòng"
+      ]
     },
+
     {
-      "Name": "UniKey Tiếng Việt",
-      "Id": "UniKey.UniKey",
+      "Name": "7-Zip",
       "Type": "Winget",
-      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
-    },
-    {
-      "Name": "Zalo PC",
-      "Id": "Zalo.Zalo",
-      "Type": "Winget",
-      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
-    },
-    {
-      "Name": "7-Zip Compressor",
       "Id": "7zip.7zip",
-      "Type": "Winget",
-      "Profiles": ["Văn phòng", "Kỹ thuật", "Bảo hành", "Kế toán"]
+      "Profiles": [
+        "Kỹ thuật",
+        "Kế toán",
+        "Kinh doanh",
+        "Văn phòng"
+      ]
     },
+
     {
-      "Name": "Notepad++ Text Editor",
+      "Name": "VLC",
+      "Type": "Winget",
+      "Id": "VideoLAN.VLC",
+      "Profiles": [
+        "Kỹ thuật",
+        "Văn phòng"
+      ]
+    },
+
+    {
+      "Name": "Notepad++",
+      "Type": "Winget",
       "Id": "Notepad++.Notepad++",
-      "Type": "Winget",
-      "Profiles": ["Kỹ thuật", "Kế toán"]
+      "Profiles": [
+        "Kỹ thuật",
+        "Kế toán"
+      ]
     },
+
     {
-      "Name": "AnyDesk Remote Support",
-      "Id": "AnyDesk.AnyDesk",
+      "Name": "Microsoft Edge",
       "Type": "Winget",
-      "Profiles": ["Kỹ thuật", "Bảo hành"]
+      "Id": "Microsoft.Edge",
+      "Profiles": [
+        "Kỹ thuật",
+        "Kế toán",
+        "Kinh doanh",
+        "Văn phòng"
+      ]
+    },
+
+    {
+      "Name": "PowerToys",
+      "Type": "Winget",
+      "Id": "Microsoft.PowerToys",
+      "Profiles": [
+        "Kỹ thuật"
+      ]
+    },
+
+    {
+      "Name": "Font HACHIHI",
+      "Type": "Font",
+      "Profiles": [
+        "Kỹ thuật",
+        "Kế toán",
+        "Kinh doanh",
+        "Văn phòng"
+      ]
     }
-  ]
+  ],
+
+  "FontUrl": "https://raw.githubusercontent.com/hachihi/hachihi-setup/main/fonts.zip",
+
+  "FontHashSHA256": ""
 }
