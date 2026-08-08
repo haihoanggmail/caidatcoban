@@ -38,10 +38,12 @@ function Write-HachihiLog {
     [System.Windows.Forms.Application]::DoEvents()
 }
 
+
 function Test-HachihiInternet {
     try {
-        $res = Invoke-WebRequest -Uri "https://www.msftconnecttest.com/connecttest.txt" -TimeoutSec 4 -UseBasicParsing -ErrorAction Stop
-        return ($res.StatusCode -eq 200)
+        # Thử ping tới IP Google thay vì gọi web qua URL dễ bị tường lửa chặn
+        $ping = Test-Connection -ComputerName 8.8.8.8 -Count 1 -TimeoutSec 3 -ErrorAction SilentlyContinue
+        return ($null -ne $ping)
     } catch {
         return $false
     }
