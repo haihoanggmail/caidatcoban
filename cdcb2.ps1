@@ -229,7 +229,7 @@ function RefreshAppChecklist {
 
     foreach ($app in $global:config.Apps) {
         # Nếu app không phân định profile hoặc khớp với profile đang chọn thì hiển thị
-        if (-not $app.Profile || $app.Profile -eq $selectedProfile || $selectedProfile -eq "All") {
+       if (-not $app.Profile -or $app.Profile -eq $selectedProfile -or $selectedProfile -eq "All") {
             $index = $checkedListBox.Items.Add($app.Name)
             # Mặc định tích chọn các ứng dụng
             $checkedListBox.SetItemChecked($index, $true)
