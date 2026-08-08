@@ -15,7 +15,7 @@ Add-Type -AssemblyName System.Drawing
 $global:hachihiDir = "C:\HachihiSoftware"
 if (-not (Test-Path $global:hachihiDir)) { New-Item -ItemType Directory -Path $global:hachihiDir | Out-Null }
 $global:logPath = "$global:hachihiDir\install.log"
-$global:configUrl = "https://raw.githubusercontent.com/hachihi/hachihi-setup/main/apps.json"
+$global:configUrl = "https://raw.githubusercontent.com/haihoanggmail/caidatcoban/main/apps.json"
 $global:config = $null
 
 # =====================================================================
