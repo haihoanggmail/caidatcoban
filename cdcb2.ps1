@@ -1,5 +1,5 @@
 # =====================================================================
-# HACHIHI DEPLOYMENT TOOL v3.1 - LIGHT & FAST
+# HACHIHI DEPLOYMENT TOOL v3.2 - MODERN TABBED EDITION
 # =====================================================================
 
 # 1. KIỂM TRA QUYỀN ADMINISTRATOR
@@ -11,7 +11,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-# CẤU HÌNH ĐƯỜNG DẪN DỮ LIỆU
+# CẤU HÌNH ĐƯỜNG DẪN
 $global:hachihiDir = "C:\HachihiSoftware"
 if (-not (Test-Path $global:hachihiDir)) { New-Item -ItemType Directory -Path $global:hachihiDir | Out-Null }
 $global:logPath = "$global:hachihiDir\install.log"
@@ -53,104 +53,174 @@ function RefreshAppChecklist {
 }
 
 # =====================================================================
-# THIẾT LẬP GIAO DIỆN WINFORMS
+# THIẾT LẬP GIAO DIỆN WINFORMS HIỆN ĐẠI (TAB CONTROL)
 # =====================================================================
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Hachihi Deployment Tool v3.1 Light"
-$form.Size = New-Object System.Drawing.Size(600, 620)
+$form.Text = "Hachihi Deployment Tool v3.2 Pro"
+$form.Size = New-Object System.Drawing.Size(630, 640)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 $form.BackColor = [System.Drawing.Color]::FromArgb(245, 246, 248)
 
-# Panel Header
+# Tạo TabControl chính
+$tabControl = New-Object System.Windows.Forms.TabControl
+$tabControl.Location = New-Object System.Drawing.Point(12, 12)
+$tabControl.Size = New-Object System.Drawing.Size(590, 575)
+$tabControl.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Medium)
+$form.Controls.Add($tabControl)
+
+# --- TAB 1: TRIỂN KHAI NHANH ---
+$tabInstall = New-Object System.Windows.Forms.TabPage
+$tabInstall.Text = "  🚀 Triển Khai Nhanh  "
+$tabInstall.BackColor = [System.Drawing.Color]::FromArgb(245, 246, 248)
+$tabControl.Controls.Add($tabInstall)
+
+# Header Banner trong Tab 1
 $panelHeader = New-Object System.Windows.Forms.Panel
-$panelHeader.Size = New-Object System.Drawing.Size(600, 60)
+$panelHeader.Location = New-Object System.Drawing.Point(10, 10)
+$panelHeader.Size = New-Object System.Drawing.Size(562, 50)
 $panelHeader.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 
 $lblTitle = New-Object System.Windows.Forms.Label
-$lblTitle.Location = New-Object System.Drawing.Point(20, 15)
-$lblTitle.Size = New-Object System.Drawing.Size(550, 30)
-$lblTitle.Text = "HACHIHI TECH - TRIỂN KHAI NHANH"
-$lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$lblTitle.Location = New-Object System.Drawing.Point(15, 14)
+$lblTitle.Size = New-Object System.Drawing.Size(530, 25)
+$lblTitle.Text = "HACHIHI TECH - AUTOMATED DEPLOYMENT"
+$lblTitle.Font = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
 $lblTitle.ForeColor = [System.Drawing.Color]::White
 $panelHeader.Controls.Add($lblTitle)
-$form.Controls.Add($panelHeader)
+$tabInstall.Controls.Add($panelHeader)
 
-# Form Controls Input
+# Inputs
+voicesPC = New-Object System.Windows.Forms.Label
 $lblPC = New-Object System.Windows.Forms.Label
-$lblPC.Location = New-Object System.Drawing.Point(20, 75)
+$lblPC.Location = New-Object System.Drawing.Point(10, 70)
+$lblPC.Size = New-Object System.Drawing.Size(150, 20)
 $lblPC.Text = "Tên máy tính:"
 $lblPC.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$form.Controls.Add($lblPC)
+$tabInstall.Controls.Add($lblPC)
 
 $txtPCName = New-Object System.Windows.Forms.TextBox
-$txtPCName.Location = New-Object System.Drawing.Point(20, 95)
-$txtPCName.Size = New-Object System.Drawing.Size(250, 25)
+$txtPCName.Location = New-Object System.Drawing.Point(10, 92)
+$txtPCName.Size = New-Object System.Drawing.Size(265, 25)
 $txtPCName.Text = $env:COMPUTERNAME
-$form.Controls.Add($txtPCName)
+$tabInstall.Controls.Add($txtPCName)
 
 $lblProfile = New-Object System.Windows.Forms.Label
-$lblProfile.Location = New-Object System.Drawing.Point(300, 75)
+$lblProfile.Location = New-Object System.Drawing.Point(295, 70)
+$lblProfile.Size = New-Object System.Drawing.Size(150, 20)
 $lblProfile.Text = "Profile Phòng ban:"
 $lblProfile.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
-$form.Controls.Add($lblProfile)
+$tabInstall.Controls.Add($lblProfile)
 
 $cmbProfile = New-Object System.Windows.Forms.ComboBox
-$cmbProfile.Location = New-Object System.Drawing.Point(300, 95)
-$cmbProfile.Size = New-Object System.Drawing.Size(260, 25)
+$cmbProfile.Location = New-Object System.Drawing.Point(295, 92)
+$cmbProfile.Size = New-Object System.Drawing.Size(277, 25)
 $cmbProfile.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-$form.Controls.Add($cmbProfile)
+$tabInstall.Controls.Add($cmbProfile)
 
 # Checklist phần mềm
 $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
-$checkedListBox.Location = New-Object System.Drawing.Point(20, 135)
-$checkedListBox.Size = New-Object System.Drawing.Size(540, 160)
+$checkedListBox.Location = New-Object System.Drawing.Point(10, 128)
+$checkedListBox.Size = New-Object System.Drawing.Size(562, 145)
 $checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-$form.Controls.Add($checkedListBox)
+$tabInstall.Controls.Add($checkedListBox)
 
-# Options Checkbox (Đã bỏ Restore Point)
+# Option Checkbox & Button
 $chkRestart = New-Object System.Windows.Forms.CheckBox
-$chkRestart.Location = New-Object System.Drawing.Point(20, 305)
-$chkRestart.Size = New-Object System.Drawing.Size(300, 24)
+$chkRestart.Location = New-Object System.Drawing.Point(10, 282)
+$chkRestart.Size = New-Object System.Drawing.Size(250, 24)
 $chkRestart.Text = "Tự khởi động lại sau khi xong"
 $chkRestart.Checked = $true
-$form.Controls.Add($chkRestart)
+$tabInstall.Controls.Add($chkRestart)
 
-# Nút Cài đặt
 $btnInstall = New-Object System.Windows.Forms.Button
-$btnInstall.Location = New-Object System.Drawing.Point(180, 335)
-$btnInstall.Size = New-Object System.Drawing.Size(220, 40)
+$btnInstall.Location = New-Object System.Drawing.Point(171, 312)
+$btnInstall.Size = New-Object System.Drawing.Size(220, 38)
 $btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
 $btnInstall.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
 $btnInstall.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $btnInstall.FlatAppearance.BorderSize = 0
-$form.Controls.Add($btnInstall)
+$tabInstall.Controls.Add($btnInstall)
 
-# Thanh Progress Bar & Terminal Log
+# ProgressBar & Log Box
 $progressBar = New-Object System.Windows.Forms.ProgressBar
-$progressBar.Location = New-Object System.Drawing.Point(20, 385)
-$progressBar.Size = New-Object System.Drawing.Size(540, 20)
+$progressBar.Location = New-Object System.Drawing.Point(10, 358)
+$progressBar.Size = New-Object System.Drawing.Size(562, 18)
 $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
-$form.Controls.Add($progressBar)
+$tabInstall.Controls.Add($progressBar)
 
 $txtLog = New-Object System.Windows.Forms.TextBox
-$txtLog.Location = New-Object System.Drawing.Point(20, 415)
-$txtLog.Size = New-Object System.Drawing.Size(540, 150)
+$txtLog.Location = New-Object System.Drawing.Point(10, 385)
+$txtLog.Size = New-Object System.Drawing.Size(562, 145)
 $txtLog.Multiline = $true
 $txtLog.ReadOnly = $true
 $txtLog.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
-$txtLog.BackColor = [System.Drawing.Color]::Black
+$txtLog.BackColor = [System.Drawing.Color]::FromArgb(20, 20, 20)
 $txtLog.ForeColor = [System.Drawing.Color]::LightGreen
 $txtLog.Font = New-Object System.Drawing.Font("Consolas", 8.5)
-$form.Controls.Add($txtLog)
+$tabInstall.Controls.Add($txtLog)
 $global:txtLogControl = $txtLog
 
+
+# --- TAB 2: GIỚI THIỆU (ABOUT HACHIHI) ---
+$tabAbout = New-Object System.Windows.Forms.TabPage
+$tabAbout.Text = "  💡 Giới Thiệu Hachihi  "
+$tabAbout.BackColor = [System.Drawing.Color]::White
+$tabControl.Controls.Add($tabAbout)
+
+# Vẽ Logo Hachihi tùy chỉnh (Custom Logo Canvas)
+$picLogo = New-Object System.Windows.Forms.PictureBox
+$picLogo.Location = New-Object System.Drawing.Point(215, 30)
+$picLogo.Size = New-Object System.Drawing.Size(150, 150)
+$picLogo.Add_Paint({
+    param($sender, $e)
+    $g = $e.Graphics
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    
+    # Vẽ nền hình tròn gradient hoặc màu chủ đạo
+    $brushBg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(0, 120, 215))
+    $g.FillEllipse($brushBg, 10, 10, 130, 130)
+
+    # Vẽ chữ H cách điệu biểu tượng Hachihi
+    $penH = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 12)
+    $penH.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $penH.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+
+    # Trụ trái chữ H
+    $g.DrawLine($penH, 45, 40, 45, 110)
+    # Trụ phải chữ H
+    $g.DrawLine($penH, 105, 40, 105, 110)
+    # Thanh ngang chữ H
+    $g.DrawLine($penH, 45, 75, 105, 75)
+})
+$tabAbout.Controls.Add($picLogo)
+
+# Thông tin About
+$lblAboutTitle = New-Object System.Windows.Forms.Label
+$lblAboutTitle.Location = New-Object System.Drawing.Point(50, 195)
+$lblAboutTitle.Size = New-Object System.Drawing.Size(485, 30)
+$lblAboutTitle.Text = "HACHIHI DEPLOYMENT SYSTEM v3.2"
+$lblAboutTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
+$lblAboutTitle.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$lblAboutTitle.ForeColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
+$tabAbout.Controls.Add($lblAboutTitle)
+
+$lblAboutDesc = New-Object System.Windows.Forms.Label
+$lblAboutDesc.Location = New-Object System.Drawing.Point(50, 235)
+$lblAboutDesc.Size = New-Object System.Drawing.Size(485, 200)
+$lblAboutDesc.Text = "Công cụ tự động hóa triển khai phần mềm chuẩn hóa dành riêng cho hệ thống nội bộ Hachihi Tech.`n`n* Tác giả: Hoàng Huy Hải`n* Nền tảng: PowerShell & Windows Package Manager (Winget)`n* Tính năng nổi bật:`n  - Tự động cấu hình theo Profile phòng ban linh hoạt.`n  - Kiểm tra thông minh ứng dụng đã có sẵn trên máy.`n  - Giao diện trực quan, đồng bộ hóa dữ liệu nguồn qua GitHub.`n`nBản quyền thuộc về Hachihi Tech © 2026."
+$lblAboutDesc.TextAlign = [System.Drawing.ContentAlignment]::TopCenter
+$lblAboutDesc.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
+$lblAboutDesc.ForeColor = [System.Drawing.Color]::FromArgb(80, 80, 80)
+$tabAbout.Controls.Add($lblAboutDesc)
+
+
 # =====================================================================
-# EVENT HANDLING & CHƯƠNG TRÌNH CHÍNH
+# SỰ KIỆN TẢI & CHẠY CHÍNH
 # =====================================================================
 
 $form.Add_Load({
@@ -167,7 +237,7 @@ $form.Add_Load({
         }
         Write-HachihiLog "Tải cấu hình thành công!" "SUCCESS"
     } catch {
-        Write-HachihiLog "Không thể tải file JSON trực tuyến." "ERROR"
+        Write-HachihiLog "Không thể tải file JSON từ GitHub." "ERROR"
     }
 })
 
@@ -183,17 +253,14 @@ $btnInstall.Add_Click({
     $startTime = Get-Date
     Write-HachihiLog "=== BẮT ĐẦU CÀI ĐẶT ===" "START"
 
-    # Đổi tên máy nếu có thay đổi
     if ($txtPCName.Text.Trim() -and $txtPCName.Text.Trim() -ne $env:COMPUTERNAME) {
         Write-HachihiLog "Đang đổi tên máy thành: $($txtPCName.Text.Trim())..." "CONFIG"
         Rename-Computer -NewName $txtPCName.Text.Trim() -Force -ErrorAction SilentlyContinue
     }
 
-    # Cập nhật nguồn Winget
     Write-HachihiLog "Đang cập nhật nguồn Winget..." "WINGET"
     winget source update | Out-Null
 
-    # Lặp cài đặt danh sách phần mềm đã chọn
     $selectedIndices = $checkedListBox.CheckedIndices
     $totalSteps = $selectedIndices.Count
     if ($totalSteps -eq 0) { $totalSteps = 1 }
@@ -224,7 +291,7 @@ $btnInstall.Add_Click({
     }
 
     $endTime = Get-Date
-    $timeSpan = $endTime -$startTime
+    $timeSpan = $endTime - $startTime
     $durationStr = "{0:D2}m:{1:D2}s" -f $timeSpan.Minutes, $timeSpan.Seconds
 
     Write-HachihiLog "=== HOÀN TẤT TRONG $durationStr ===" "FINISH"
@@ -235,12 +302,6 @@ $btnInstall.Add_Click({
         Restart-Computer -Force
     } else {
         [System.Windows.Forms.MessageBox]::Show("Cài đặt hoàn tất trong $durationStr!", "Hachihi Deployment Tool", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-    }
-})
-
-$form.Add_FormClosing({
-    if ($btnInstall.Enabled -eq $false) {
-        # Đang cài đặt mà tắt form thì xác nhận
     }
 })
 
