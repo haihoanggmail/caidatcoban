@@ -1,5 +1,5 @@
 # =====================================================================
-# HACHIHI DEPLOYMENT TOOL v3.2 - MODERN TABBED EDITION
+# HACHIHI DEPLOYMENT TOOL v3.2 - FIXED & PRO
 # =====================================================================
 
 # 1. KIỂM TRA QUYỀN ADMINISTRATOR
@@ -68,7 +68,7 @@ $form.BackColor = [System.Drawing.Color]::FromArgb(245, 246, 248)
 $tabControl = New-Object System.Windows.Forms.TabControl
 $tabControl.Location = New-Object System.Drawing.Point(12, 12)
 $tabControl.Size = New-Object System.Drawing.Size(590, 575)
-$tabControl.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Medium)
+$tabControl.Font = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Regular)
 $form.Controls.Add($tabControl)
 
 # --- TAB 1: TRIỂN KHAI NHANH ---
@@ -93,7 +93,6 @@ $panelHeader.Controls.Add($lblTitle)
 $tabInstall.Controls.Add($panelHeader)
 
 # Inputs
-voicesPC = New-Object System.Windows.Forms.Label
 $lblPC = New-Object System.Windows.Forms.Label
 $lblPC.Location = New-Object System.Drawing.Point(10, 70)
 $lblPC.Size = New-Object System.Drawing.Size(150, 20)
@@ -181,20 +180,15 @@ $picLogo.Add_Paint({
     $g = $e.Graphics
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     
-    # Vẽ nền hình tròn gradient hoặc màu chủ đạo
     $brushBg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(0, 120, 215))
     $g.FillEllipse($brushBg, 10, 10, 130, 130)
 
-    # Vẽ chữ H cách điệu biểu tượng Hachihi
     $penH = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 12)
     $penH.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
     $penH.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
 
-    # Trụ trái chữ H
     $g.DrawLine($penH, 45, 40, 45, 110)
-    # Trụ phải chữ H
     $g.DrawLine($penH, 105, 40, 105, 110)
-    # Thanh ngang chữ H
     $g.DrawLine($penH, 45, 75, 105, 75)
 })
 $tabAbout.Controls.Add($picLogo)
