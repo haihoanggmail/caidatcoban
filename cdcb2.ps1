@@ -1,5 +1,5 @@
 # =====================================================================
-# HACHIHI DEPLOYMENT TOOL v3.1 (NO RESTORE POINT - ENHANCED CHECK)
+# HACHIHI DEPLOYMENT TOOL v3.0 MASTER EDITION (OPTIMIZED & FIXED)
 # Enterprise-Grade One-Click Automated Setup System
 # =====================================================================
 
@@ -37,7 +37,6 @@ function Write-HachihiLog {
     }
     [System.Windows.Forms.Application]::DoEvents()
 }
-
 
 function Test-HachihiInternet {
     try {
@@ -82,6 +81,7 @@ function Test-WingetAppInstalled {
     return ($output -match [regex]::Escape($appId))
 }
 
+# ĐỊNH NGHĨA HÀM RefreshAppChecklist TRƯỚC KHI GÁN EVENT
 function RefreshAppChecklist {
     if (-not $global:config) { return }
     $checkedListBox.Items.Clear()
@@ -98,8 +98,8 @@ function RefreshAppChecklist {
 # =====================================================================
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "Hachihi Deployment Tool v3.1"
-$form.Size = New-Object System.Drawing.Size(600, 650)
+$form.Text = "Hachihi Deployment Tool v3.0 Master"
+$form.Size = New-Object System.Drawing.Size(600, 680)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -151,19 +151,26 @@ $checkedListBox.Size = New-Object System.Drawing.Size(540, 180)
 $checkedListBox.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 $form.Controls.Add($checkedListBox)
 
-# Options Checkbox (Đã bỏ Restore Point, chỉ giữ lại Tự khởi động lại)
+# Options Checkbox
+$chkRestore = New-Object System.Windows.Forms.CheckBox
+$chkRestore.Location = New-Object System.Drawing.Point(20, 325)
+$chkRestore.Size = New-Object System.Drawing.Size(250, 24)
+$chkRestore.Text = "Tạo Restore Point hệ thống"
+$chkRestore.Checked = $true
+$form.Controls.Add($chkRestore)
+
 $chkRestart = New-Object System.Windows.Forms.CheckBox
-$chkRestart.Location = New-Object System.Drawing.Point(20, 325)
-$chkRestart.Size = New-Object System.Drawing.Size(300, 24)
-$chkRestart.Text = "Tự khởi động lại sau khi hoàn tất"
-$chkRestart.Checked = $true
+$chkRestart.Location = New-Object System.Drawing.Point(300, 325)
+$chkRestart.Size = New-Object System.Drawing.Size(250, 24)
+$chkRestart.Text = "Tự khởi động lại sau khi xong"
+$chkRestart.Checked = $true # Khuyến nghị bật sẵn để nhận tên máy mới
 $form.Controls.Add($chkRestart)
 
 # Nút Cài đặt
 $btnInstall = New-Object System.Windows.Forms.Button
-$btnInstall.Location = New-Object System.Drawing.Point(180, 355)
+$btnInstall.Location = New-Object System.Drawing.Point(180, 360)
 $btnInstall.Size = New-Object System.Drawing.Size(220, 40)
-$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT"
+$btnInstall.Text = "BẮT ĐẦU CÀI ĐẶT v3.0"
 $btnInstall.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $btnInstall.BackColor = [System.Drawing.Color]::FromArgb(0, 120, 215)
 $btnInstall.ForeColor = [System.Drawing.Color]::White
@@ -173,14 +180,14 @@ $form.Controls.Add($btnInstall)
 
 # Thanh Progress Bar & Terminal Log
 $progressBar = New-Object System.Windows.Forms.ProgressBar
-$progressBar.Location = New-Object System.Drawing.Point(20, 405)
+$progressBar.Location = New-Object System.Drawing.Point(20, 415)
 $progressBar.Size = New-Object System.Drawing.Size(540, 20)
 $progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
 $form.Controls.Add($progressBar)
 
 $txtLog = New-Object System.Windows.Forms.TextBox
-$txtLog.Location = New-Object System.Drawing.Point(20, 435)
-$txtLog.Size = New-Object System.Drawing.Size(540, 170)
+$txtLog.Location = New-Object System.Drawing.Point(20, 445)
+$txtLog.Size = New-Object System.Drawing.Size(540, 180)
 $txtLog.Multiline = $true
 $txtLog.ReadOnly = $true
 $txtLog.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
@@ -219,6 +226,7 @@ $form.Add_Load({
     }
 })
 
+# Đăng ký sự kiện sau khi hàm đã sẵn sàng
 $cmbProfile.Add_SelectedIndexChanged({ RefreshAppChecklist })
 
 # TIẾN HÀNH THỰC THI (MAIN PROCESS)
@@ -228,12 +236,13 @@ $btnInstall.Add_Click({
     $txtPCName.Enabled = $false
     $cmbProfile.Enabled = $false
     $checkedListBox.Enabled = $false
+    $chkRestore.Enabled = $false
     $chkRestart.Enabled = $false
 
     $startTime = Get-Date
     Write-HachihiLog "=== BẮT ĐẦU TRIỂN KHAI HỆ THỐNG ===" "START"
 
-    # 1. Kiểm tra dung lượng đĩa C và trạng thái hệ thống
+    # 1. Kiểm tra dung lượng đĩa C
     $sysInfo = Get-HachihiSystemMetrics
     Write-HachihiLog "Cấu hình: CPU: $($sysInfo.CPU) | RAM: $($sysInfo.RAM_GB)GB | Ổ C Trống: $($sysInfo.FreeDiskC_GB)GB" "SYS"
     
@@ -251,14 +260,26 @@ $btnInstall.Add_Click({
         Rename-Computer -NewName $txtPCName.Text.Trim() -Force -ErrorAction SilentlyContinue
     }
 
-    # 3. Winget Update Sources
+    # 3. Tạo Restore Point
+    if ($chkRestore.Checked) {
+        Write-HachihiLog "Đang tạo Restore Point hệ thống..." "SYS"
+        try {
+            Enable-ComputerRestore -Drive "$env:SystemDrive" -ErrorAction SilentlyContinue
+            Checkpoint-Computer -Description "Hachihi_v3_Setup" -RestorePointType "MODIFY_SETTINGS" -ErrorAction SilentlyContinue
+            Write-HachihiLog "Đã tạo Restore Point thành công!" "SUCCESS"
+        } catch {
+            Write-HachihiLog "Bỏ qua tạo Restore Point (Không hỗ trợ hoặc lỗi)." "WARNING"
+        }
+    }
+
+    # 4. Winget Update Sources
     Write-HachihiLog "Đang cập nhật danh mục nguồn Winget..." "WINGET"
     winget source update | Out-Null
 
-    # 4. Lặp cài đặt danh sách phần mềm đã chọn
+    # 5. Lặp cài đặt danh sách phần mềm đã chọn
     $selectedIndices = $checkedListBox.CheckedIndices
     $totalSteps = $selectedIndices.Count
-    if ($totalSteps -eq 0) { $totalSteps = 1 }
+    if ($totalSteps -eq 0) { $totalSteps = 1 } # Tránh chia cho 0
     $currentStep = 0
 
     $installedSummary = @()
@@ -271,9 +292,8 @@ $btnInstall.Add_Click({
         if ($app.Type -eq "Winget") {
             Write-HachihiLog "[$currentStep/$totalSteps] Kiểm tra phần mềm: $($app.Name)..." "INSTALL"
             
-            # Kiểm tra nếu đã cài đặt -> Bỏ qua và thông báo ra màn hình log
             if (Test-WingetAppInstalled -appId $app.Id) {
-                Write-HachihiLog "-> THÔNG BÁO: $($app.Name) đã có sẵn trên máy. Bỏ qua bước cài đặt." "SKIP"
+                Write-HachihiLog "-> SKIP: $($app.Name) đã được cài sẵn trên máy." "SKIP"
                 $installedSummary += "$($app.Name): Đã có sẵn"
                 continue
             }
@@ -291,7 +311,7 @@ $btnInstall.Add_Click({
         }
 
         if ($app.Type -eq "Font") {
-            Write-HachihiLog "[$currentStep/$totalSteps] Đang xử lý bộ Font chữ tiêu chuẩn..." "FONT"
+            Write-HachihiLog "[$currentStep/$totalSteps] Đang tải & cài đặt bộ Font chữ tiêu chuẩn..." "FONT"
             $tempDir = "$env:TEMP\HachihiFonts"
             if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
             New-Item -ItemType Directory -Path $tempDir | Out-Null
@@ -314,7 +334,6 @@ $btnInstall.Add_Click({
                 $fontFiles = Get-ChildItem $extractPath -Recurse -Include *.ttf, *.otf
                 $winFontDir = "$env:SystemRoot\Fonts"
                 $fCount = 0
-                $fSkipped = 0
 
                 foreach ($font in $fontFiles) {
                     $targetPath = Join-Path $winFontDir $font.Name
@@ -323,13 +342,10 @@ $btnInstall.Add_Click({
                         $regName = "$($font.BaseName) (TrueType)"
                         New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" -Name $regName -Value $font.Name -PropertyType String -Force | Out-Null
                         $fCount++
-                    } else {
-                        Write-HachihiLog "-> THÔNG BÁO: Font [$($font.Name)] đã có sẵn trên máy. Bỏ qua." "SKIP"
-                        $fSkipped++
                     }
                 }
-                Write-HachihiLog "-> SUCCESS: Đã thêm mới $fCount font, bỏ qua $fSkipped font đã có sẵn." "SUCCESS"
-                $installedSummary += "Hệ thống Font: Thêm $fCount, Bỏ qua $fSkipped"
+                Write-HachihiLog "-> SUCCESS: Đã đăng ký thành công $fCount Font chữ mới!" "SUCCESS"
+                $installedSummary += "Hệ thống Font: $fCount font mới"
             } catch {
                 Write-HachihiLog "-> ERROR: Lỗi trong quá trình xử lý Font chữ." "ERROR"
             }
@@ -337,7 +353,7 @@ $btnInstall.Add_Click({
         }
     }
 
-    # 5. Tổng kết thời gian & Xuất file Báo cáo
+    # 6. Tổng kết thời gian & Xuất file Báo cáo
     $endTime = Get-Date
     $timeSpan = $endTime - $startTime
     $durationStr = "{0:D2}m:{1:D2}s" -f $timeSpan.Minutes, $timeSpan.Seconds
@@ -360,7 +376,7 @@ $btnInstall.Add_Click({
     }
     $reportObject | ConvertTo-Json -Depth 3 | Out-File -FilePath $global:jsonPath -Encoding utf8
 
-    # 6. Gửi telemetry lên Google Sheets Webhook
+    # 7. Gửi telemetry lên Google Sheets Webhook
     if ($global:webhookUrl -and $global:webhookUrl -ne "YOUR_GOOGLE_APPS_SCRIPT_WEB_URL_HERE") {
         Write-HachihiLog "Đang đồng bộ báo cáo về Google Sheets / ERP..." "WEBHOOK"
         try {
@@ -372,13 +388,14 @@ $btnInstall.Add_Click({
         }
     }
 
-    # 7. Xử lý Sau khi hoàn tất
+    # 8. Xử lý Sau khi hoàn tất
     if ($chkRestart.Checked) {
         Write-HachihiLog "Máy tính sẽ khởi động lại sau 10 giây..." "SYS"
         Start-Sleep -Seconds 10
         Restart-Computer -Force
     } else {
         [System.Windows.Forms.MessageBox]::Show("Quá trình thiết lập hoàn tất xuất sắc trong $durationStr!", "Hachihi Deployment Tool", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        Start-Process "diskmgmt.msc"
     }
 })
 
